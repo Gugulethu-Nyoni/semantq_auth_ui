@@ -48,6 +48,7 @@ semantq add:auth-ui
 
 ```
 
+```bash
 public/
 ├── auth/
 │   ├── js/
@@ -56,7 +57,7 @@ public/
 └── dashboard/
 ├── js/
 └── css/
-
+```
 
 - 🛣️ Clones all route files into your project’s `src/routes/` directory:
 
