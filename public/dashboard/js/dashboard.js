@@ -1,83 +1,112 @@
-// public/dashboard/js/dashboard.js
-
 import AppConfig from '../../auth/js/config.js';
 
-    console.log("dashboard js loaded");
+console.log("📊 Dashboard script loaded");
 
+const PATHS = {
+    VALIDATE_SESSION: `${AppConfig.BASE_URL}/validate-session`,
+    PROFILE: `${AppConfig.BASE_URL}/profile`,
+    LOGOUT: `${AppConfig.BASE_URL}/logout`,
+    LOGIN: 'login' // Relative path to login page
+};
 
+// Session Validation
+async function verifySession() {
+    console.log('🔒 Validating session...');
+    try {
+        const res = await fetch(PATHS.VALIDATE_SESSION, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (!res.ok) {
+            console.warn('Session validation failed with non-OK response');
+            return false;
+        }
+
+        const data = await res.json();
+        console.log('Session validation response:', data);
+        return data.success && data.data?.valid === true;
+
+    } catch (err) {
+        console.error('Session validation error:', err);
+        return false;
+    }
+}
+
+// Fetch user profile
 async function fetchUserProfile() {
     console.log('Fetching user profile...');
     try {
-        const response = await fetch(`${AppConfig.BASE_URL}/profile`, {
+        const response = await fetch(PATHS.PROFILE, {
             method: 'GET',
-            credentials: 'include' // Important to send the HttpOnly cookie
+            credentials: 'include'
         });
 
         if (response.ok) {
             const data = await response.json();
-            if (data.success && data.data && data.data.profile) {
+            if (data.success && data.data?.profile) {
                 console.log('User profile fetched:', data.data.profile);
                 displayUserProfile(data.data.profile);
             } else {
-                console.error('Failed to fetch user profile: Invalid data format', data);
-                document.getElementById('dashboard-data').textContent = 'Failed to load profile.';
+                console.error('Invalid profile response', data);
+                window.location.href = PATHS.LOGIN;
             }
         } else {
             const errorData = await response.json();
-            console.error('Failed to fetch user profile:', errorData.message || 'Unknown error');
-            document.getElementById('dashboard-data').textContent = `Error: ${errorData.message || 'Failed to load profile.'}`;
-            // If 401/403, might need to redirect to login
+            console.error('Profile fetch failed:', errorData.message || 'Unknown error');
             if (response.status === 401 || response.status === 403) {
-                console.log('Session expired or invalid, redirecting to login...');
-                window.location.href = '/auth/login';
+                window.location.href = PATHS.LOGIN;
             }
         }
     } catch (error) {
-        console.error('Network error during profile fetch:', error);
-        document.getElementById('dashboard-data').textContent = 'Network error loading profile.';
+        console.error('Network error fetching profile:', error);
+        window.location.href = PATHS.LOGIN;
     }
 }
 
+// Display profile info
 function displayUserProfile(profile) {
     const dashboardData = document.getElementById('dashboard-data');
-    dashboardData.innerHTML = `
-        <!-- <p><strong>Email:</strong> ${profile.email}</p> -->
-        <p><strong> Hi </strong> ${profile.name || 'Not set'}</p>
+    if (dashboardData) {
+        dashboardData.innerHTML = `
+            <p><strong>Hi</strong> ${profile.name || 'Not set'}</p>
         `;
+    }
 }
 
-// Function to handle logout (existing, but included for completeness)
+// Logout function
 async function logout() {
-    console.log('Attempting logout...');
+    console.log('Logging out...');
     try {
-        const response = await fetch(`${AppConfig.BASE_URL}/logout`, {
+        const response = await fetch(PATHS.LOGOUT, {
             method: 'POST',
             credentials: 'include'
         });
 
         if (response.ok) {
-            console.log('Logout successful. Redirecting to login page.');
-            window.location.href = 'login';
+            window.location.href = PATHS.LOGIN;
         } else {
             const errorData = await response.json();
             console.error('Logout failed:', errorData.message || 'Unknown error');
-            alert('Logout failed. Please try again.');
         }
     } catch (error) {
-        console.error('Network error during logout:', error);
-        alert('A network error occurred during logout. Please check your connection.');
+        console.error('Logout network error:', error);
     }
 }
 
+// Page load sequence
+async function initDashboard() {
+    const sessionIsValid = await verifySession();
+    if (!sessionIsValid) {
+        window.location.href = PATHS.LOGIN;
+        return;
+    }
 
-// Call fetchUserProfile when the dashboard page loads
-//document.addEventListener('DOMContentLoaded', fetchUserProfile);
+    await fetchUserProfile();
+}
 
-fetchUserProfile();
+// Run on page load
+initDashboard();
 
-// Make logout globally accessible (since it's called from onclick)
+// Expose logout globally
 window.logout = logout;
-
-
-
-
