@@ -1,5 +1,3 @@
-// /auth/js/auth.js
-
 import AppConfig from './config.js';
 
 const PATHS = {
@@ -60,5 +58,10 @@ export async function logout() {
     }
 }
 
-// (Optional) Expose logout globally so it can be called from buttons etc.
+// (Optional) Expose logout globally for button clicks etc.
 window.logout = logout;
+
+// Self-invoking async function to auto-secure the page on import
+(async () => {
+    await securePage();
+})();
