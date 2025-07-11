@@ -17,7 +17,7 @@
  * Example:
  *   BASE_URLS: {
  *     development: 'http://localhost:3003',
- *     production: 'https://api.botaniqsa.com'
+ *     production: 'https://api.example.com'
  *   }
  */
 const AppConfig = {
