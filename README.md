@@ -8,7 +8,7 @@
 - Login and logout
 - Password recovery
 
-**`semantq_auth_ui`** is a plug-and-play user interface layer built for Semantq-based full-stack projects. It works **on top of `@semantq/auth`** and simplifies the process of getting your frontend authentication UI up and running.
+**`semantq_auth_ui`** is an optional plug-and-play user interface layer built for Semantq-based full-stack projects. It works **on top of `@semantq/auth`** and simplifies the process of getting your frontend authentication UI up and running. The is a guide for installing the Semantq Auth UI to your Semantq project.
 
 
 ## Prerequisites
