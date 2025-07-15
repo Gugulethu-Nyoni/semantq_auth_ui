@@ -41,7 +41,7 @@ import '/public/auth/js/forgot-password.js';
       </button>
 
       <div class="back-to-login">
-        <a href="auth/login" class="auth-switch">
+        <a href="/auth/login" class="auth-switch">
           ← Back to Login
         </a>
       </div>

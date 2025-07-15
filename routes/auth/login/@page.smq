@@ -26,11 +26,11 @@ import '/public/auth/js/login.js';
       <button type="submit">Log In</button>
 
       <p class="auth-switch">
-        New user? <a href="auth/signup">Create account</a>
+        New user? <a href="/auth/signup">Create account</a>
       </p>
 
       <p class="auth-switch">
-        <a href="auth/forgot">Forgot Password?</a>
+        <a href="/auth/forgot">Forgot Password?</a>
       </p>
 
     </form>

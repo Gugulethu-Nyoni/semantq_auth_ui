@@ -1,0 +1,11 @@
+@script
+import '/public/auth/js/auth.js';
+
+@end
+
+@style
+
+@end
+
+@html
+  auth/admin/dashboard Page
