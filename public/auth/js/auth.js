@@ -1,97 +1,238 @@
-// auth.js
 import AppConfig from './config.js';
+import { $state, $derived, $effect } from '@semantq/state';
 
-const PATHS = {
-    VALIDATE_SESSION: `${AppConfig.BASE_URL}/validate-session`,
-    LOGOUT: `${AppConfig.BASE_URL}/logout`,
-    LOGIN: '../login' // relative path to login page
-};
+/* ==================== */
+/*     CORE STATE       */
+/* ==================== */
+const _auth = $state({
+  isAuthenticated: false,
+  user: null,
+  accessLevel: null,
+  lastValidated: null
+}, {
+  key: 'auth-session',
+  storage: sessionStorage,
+  debounce: 100
+});
 
-/**
- * Validates the session cookie on the backend and retrieves user's access level.
- * @returns {Promise<{isValid: boolean, accessLevel: number|null}>} An object indicating session validity and user's access level.
- */
-export async function verifySession() {
-    console.log('Validating session...');
-    try {
-        const res = await fetch(PATHS.VALIDATE_SESSION, {
-            method: 'GET',
-            credentials: 'include'
-        });
+console.log('[AUTH] Initial _auth state:', _auth.value);
 
-        if (!res.ok) {
-            console.warn('Session validation failed (non-OK response)');
-            return { isValid: false, accessLevel: null };
-        }
+/* ==================== */
+/*     PUBLIC API       */
+/* ==================== */
+export const auth = {
+  // Reactive state
+  state: {
+    isAuthenticated: $derived(() => _auth.value.isAuthenticated),
+    rawUser: $derived(() => _auth.value.user),   // raw user object
+    accessLevel: $derived(() => _auth.value.accessLevel),
+    userId: $derived(() => _auth.value.user?.id || null),
+    userName: $derived(() => _auth.value.user?.name || 'Guest')
+  },
 
-        const data = await res.json();
-        console.log('Session validation response:', data);
+  // Methods
+  async login(email, password) {
+    console.log('[AUTH] Attempting login for:', email);
+    const res = await fetch(`${AppConfig.BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password })
+    });
 
-        // Return both validity and access_level
-        return {
-            isValid: data.success && data.data?.valid === true,
-            accessLevel: data.data?.access_level || null // Default to null if not present
-        };
-
-    } catch (err) {
-        console.error('Session validation error:', err);
-        return { isValid: false, accessLevel: null };
+    if (!res.ok) {
+      const message = await res.text();
+      console.warn('[AUTH] Login failed:', message);
+      return { success: false, message };
     }
-}
 
-/**
- * Secures the current page by checking session validity and user's access level.
- * Redirects to login if session is invalid or access level is insufficient.
- * @param {number} [requiredAccessLevel=1] The minimum access level required for the page. Defaults to 1 (basic user).
- */
-export async function securePage(requiredAccessLevel = 1) {
-    const { isValid, accessLevel } = await verifySession();
+    const result = await res.json();
+    console.log('[AUTH] User data from server:', result);
+
+    const user = result?.data?.user;
+
+    if (!user || typeof user.access_level !== 'number') {
+      console.error('[AUTH] Invalid user data returned:', user);
+      return { success: false, message: 'Invalid user data returned from server.' };
+    }
+
+    _auth.value = {
+      isAuthenticated: true,
+      user,
+      accessLevel: user.access_level,
+      lastValidated: Date.now()
+    };
+
+    console.log('[AUTH] State updated after login:', _auth.value);
+    console.log('[AUTH] Session storage snapshot:', sessionStorage.getItem('auth-session'));
+
+    return { success: true };
+  },
+
+  async validate() {
+  console.log('[AUTH] Validating session...');
+  try {
+    const res = await fetch(`${AppConfig.BASE_URL}/validate-session`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+
+    const result = res.ok ? await res.json() : { success: false };
+    const isValid = result.success === true;
 
     if (!isValid) {
-        console.warn('Session invalid, redirecting to login.');
-        window.location.href = PATHS.LOGIN;
-        return; // Stop further execution
+      _auth.value = {
+        isAuthenticated: false,
+        user: null,
+        accessLevel: null,
+        lastValidated: null
+      };
+      console.log('[AUTH] Session invalid. User logged out.');
+
+      // Redirect to login page
+      window.location.href = '/auth/login';
+
+      return false;
+    } else {
+      _auth.value = {
+        ..._auth.value,
+        isAuthenticated: true,
+        lastValidated: Date.now()
+      };
+      console.log('[AUTH] Session valid, state updated:', _auth.value);
     }
 
-    // Check if the user's access level meets the required level
-    if (accessLevel === null || accessLevel < requiredAccessLevel) {
-        console.warn(`Access denied: User access_level (${accessLevel}) is less than required (${requiredAccessLevel}). Redirecting to login.`);
-        window.location.href = PATHS.LOGIN; // Or redirect to an "access denied" page
-        return; // Stop further execution
-    }
+    console.log('[AUTH] Session storage snapshot after validate:', sessionStorage.getItem('auth-session'));
+    return isValid;
 
-    console.log(`Page secured: User has access_level ${accessLevel}, required: ${requiredAccessLevel}.`);
+  } catch (error) {
+    console.error('[AUTH] Session validation error:', error);
+    _auth.value = {
+      isAuthenticated: false,
+      user: null,
+      accessLevel: null,
+      lastValidated: null
+    };
+
+    // Redirect to login page on error too
+    window.location.href = '/auth/login';
+
+    return false;
+  }
+},
+async logout() {
+  console.log('[AUTH] Logging out...');
+  await fetch(`${AppConfig.BASE_URL}/logout`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  // Reset state
+  _auth.value = {
+    isAuthenticated: false,
+    user: null,
+    accessLevel: null,
+    lastValidated: null
+  };
+
+  console.log('[AUTH] State reset after logout:', _auth.value);
+  console.log('[AUTH] Session storage snapshot after logout:', sessionStorage.getItem('auth-session'));
+
+  // Redirect after logout
+  window.location.href = '/auth/login';
+},
+
+  getDashboardPath() {
+    return _auth.value.accessLevel >= 3 ? AppConfig.SUPER_ADMIN_DASHBOARD :
+           _auth.value.accessLevel === 2 ? AppConfig.RESEARCHER_DASHBOARD :
+           AppConfig.USER_DASHBOARD;
+  }
+};
+
+/* ==================== */
+/*  USER PROXY FOR EASY PROPERTY ACCESS */
+/* ==================== */
+export const user = {
+  get id() {
+    return _auth.value.user?.id ?? null;
+  },
+  get name() {
+    return _auth.value.user?.name ?? 'Guest';
+  },
+  get email() {
+    return _auth.value.user?.email ?? '';
+  },
+  get accessLevel() {
+    return _auth.value.user?.access_level ?? null;
+  },
+  // add more getters as needed...
+};
+
+/* ==================== */
+/*  NAMED STATE EXPORTS */
+/* ==================== */
+export const isAuthenticated = auth.state.isAuthenticated;
+export const accessLevel = auth.state.accessLevel;
+export const login = auth.login;
+export const getDashboardPath = auth.getDashboardPath;
+export const logout = auth.logout;
+
+
+// At the bottom of auth.js:
+
+window.addEventListener('DOMContentLoaded', () => {
+  const logoutBtn = document.getElementById('logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      auth.logout();  // note the method is on auth object
+    });
+  }
+});
+
+
+
+
+
+export const redirectToDashboard = () => {
+  window.location.href = auth.getDashboardPath();
+};
+
+/* ==================== */
+/*     AUTO-SETUP       */
+/* ==================== */
+$effect(() => {
+  if (auth.state.isAuthenticated.value) {
+    console.log('[AUTH] Starting session heartbeat validation every 5 minutes.');
+    const interval = setInterval(auth.validate, 300000);
+    return () => {
+      console.log('[AUTH] Clearing session heartbeat interval.');
+      clearInterval(interval);
+    };
+  }
+});
+
+$effect(() => {
+  if (auth.state.isAuthenticated.value) {
+    const expiryMs = 3600000; // 1 hour
+    const remainingMs = expiryMs - (Date.now() - (_auth.value.lastValidated || Date.now()));
+
+    console.log('[AUTH] Setting auto-redirect timer for session expiry:', remainingMs, 'ms');
+    const timer = setTimeout(() => {
+      console.log('[AUTH] Session expired - logging out and redirecting to login page.');
+      _auth.value.isAuthenticated = false;
+      window.location.href = '/login';
+    }, remainingMs);
+
+    return () => {
+      console.log('[AUTH] Clearing session expiry timer.');
+      clearTimeout(timer);
+    };
+  }
+});
+
+// Initial validation on page load except on login page
+if (!window.location.pathname.includes('login')) {
+  console.log('[AUTH] Performing initial session validation...');
+  auth.validate();
 }
-
-// Logout user and redirect to login
-export async function logout() {
-    console.log('Logging out...');
-    try {
-        const response = await fetch(PATHS.LOGOUT, {
-            method: 'POST',
-            credentials: 'include'
-        });
-
-        if (response.ok) {
-            window.location.href = PATHS.LOGIN;
-        } else {
-            const errorData = await response.json();
-            console.error('Logout failed:', errorData.message || 'Unknown error');
-        }
-    } catch (error) {
-        console.error('Logout network error:', error);
-    }
-}
-
-// (Optional) Expose logout globally for button clicks etc.
-window.logout = logout;
-
-// Self-invoking async function to auto-secure the page on import
-// Developers can now call securePage(2) for a page requiring access_level 2.
-// If no argument is passed, it defaults to 1.
-(async () => {
-    // Example: securePage(1) for a basic user page
-    // securePage(2) for an editor page
-    // securePage(3) for an admin page
-    await securePage(); // This will default to requiredAccessLevel = 1
-})();
