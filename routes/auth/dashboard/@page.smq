@@ -1,5 +1,7 @@
 @script
-import '/public/dashboard/js/dashboard.js';
+import { isAuthenticated, user, accessLevel, logout } from '/public/auth/js/auth.js';
+import '../../../../global.css';
+
 import '/public/dashboard/js/theme.js';
 import 'https://cdn.jsdelivr.net/npm/chart.js'; 
 
@@ -106,7 +108,7 @@ import 'https://cdn.jsdelivr.net/npm/chart.js';
                 </li>
 
                 <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="logout()">
+                    <a href="#" id="logout" class="nav-link">
                         <i class="fas fa-sign-out-alt"></i>
                         <span class="nav-text">Logout</span>
                     </a>

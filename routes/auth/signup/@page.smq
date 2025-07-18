@@ -1,4 +1,5 @@
 @script
+import '/public/auth/css/auth.css';
 import '/public/auth/js/signup.js';
 @end
 
@@ -26,6 +27,9 @@ import '/public/auth/js/signup.js';
     
     <form class="auth-form" id="signupForm" action="#" method="post" novalidate>
       <h2>Create Account</h2>
+
+      <input type="hidden" id="signup-ref" name="ref" />
+
 
       <div class="form-group">
         <label for="signup-name">Name</label>

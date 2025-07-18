@@ -1,5 +1,6 @@
 @script
-import '/public/auth/js/reset-password.js'
+import '/public/auth/css/auth.css';
+import '/public/auth/js/reset-password.js';
 @end
 
 @style

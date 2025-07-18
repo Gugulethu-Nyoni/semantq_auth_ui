@@ -1,0 +1,387 @@
+@script
+import '../../../../../global.css';
+import { isAuthenticated, user, accessLevel, logout } from '/public/auth/js/auth.js';
+import { $effect } from '@semantq/state';
+
+import AnyGrid from 'anygridjs';
+
+let surveys = [];
+let grid; // declared outside so we can re-use or update if needed
+
+const columns = [
+  {
+    name: 'id',
+    header: 'ID',
+    render: (value, row) => `<a href="/auth/res/dashboard/survey/${row.id}">${row.id}</a>`
+  },
+  {
+    name: 'title',
+    header: 'Title'
+  },
+  {
+    name: 'description',
+    header: 'Description',
+    actions: [
+      {
+        label: 'EDIT',
+        url: 'edit/{id}',
+        class: 'edit',
+        id: 'edit-{id}',
+      },
+      {
+        label: 'DELETE',
+        url: 'delete/{id}',
+        class: 'delete',
+        id: 'delete-{id}',
+        confirm: true,
+      },
+    ],
+  }
+];
+
+const features = {
+  initialItemsPerPage: 30,
+  csvExport: true,
+  excelExport: true,
+  theme: 'dark'
+};
+
+async function fetchSurveysByUser() {
+  const userId = user.id; // Proxy object, direct access
+  if (!userId) {
+    console.warn('No user ID found; user might not be logged in.');
+    return [];
+  }
+
+  try {
+    const response = await fetch(`http://localhost:3003/survey/surveys?userId=${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Surveys for user ${userId}:`, data);
+    surveys = data;
+
+    // Initialise or update the grid
+    if (grid) {
+      grid.updateData(surveys);
+    } else {
+      grid = new AnyGrid(surveys, columns, features);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to fetch surveys:', error);
+    return [];
+  }
+}
+
+// Run when auth is ready and user is available
+$effect(() => {
+  if (isAuthenticated.value && user.id) {
+    console.log('👋 Welcome', user.name, user.id);
+    fetchSurveysByUser(); // will handle grid logic inside
+  }
+});
+
+
+
+//document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const mobileToggleIcon = document.getElementById('mobile-toggle-icon');
+            const desktopToggleIcon = document.getElementById('desktop-toggle-icon');
+
+            const setInitialState = () => {
+                if (window.innerWidth >= 768) {
+                    sidebar.setAttribute('aria-expanded', 'true');
+                    desktopToggleIcon.classList.remove('fa-arrow-right');
+                    desktopToggleIcon.classList.add('fa-arrow-left');
+                    mobileToggleIcon.classList.add('hidden');
+                    desktopToggleIcon.classList.remove('hidden');
+                } else {
+                    sidebar.setAttribute('aria-expanded', 'false');
+                    mobileToggleIcon.classList.remove('hidden');
+                    desktopToggleIcon.classList.add('hidden');
+                }
+            };
+
+            setInitialState();
+
+            sidebarToggle.addEventListener('click', () => {
+                const isExpanded = sidebar.getAttribute('aria-expanded') === 'true';
+                sidebar.setAttribute('aria-expanded', !isExpanded);
+
+                if (window.innerWidth >= 768) {
+                    if (!isExpanded) {
+                        desktopToggleIcon.classList.remove('fa-arrow-right');
+                        desktopToggleIcon.classList.add('fa-arrow-left');
+                    } else {
+                        desktopToggleIcon.classList.remove('fa-arrow-left');
+                        desktopToggleIcon.classList.add('fa-arrow-right');
+                    }
+                }
+            });
+
+            window.addEventListener('resize', setInitialState);
+        //});
+@end
+
+@style
+ /* Custom styles to handle sidebar transitions */
+        aside[aria-expanded="false"] h1,
+        aside[aria-expanded="false"] span,
+        aside[aria-expanded="false"] .user-info-text {
+            width: 0;
+            overflow: hidden;
+            visibility: hidden;
+            opacity: 0;
+            transition: width 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        aside[aria-expanded="true"] h1,
+        aside[aria-expanded="true"] span,
+        aside[aria-expanded="true"] .user-info-text {
+            width: auto;
+            overflow: visible;
+            visibility: visible;
+            opacity: 1;
+            transition: width 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        /* Ensure no white gap appears */
+        body {
+            background-color: #111827;
+            overflow-x: hidden;
+        }
+
+        /* Main content adjustments */
+        #main-content {
+            margin-left: 4rem;
+            width: calc(100% - 4rem);
+        }
+
+        @media (min-width: 768px) {
+            #main-content {
+                margin-left: 16rem;
+                width: calc(100% - 16rem);
+            }
+            
+            aside[aria-expanded="false"] ~ #main-content {
+                margin-left: 4rem;
+                width: calc(100% - 4rem);
+            }
+        }
+@end
+
+@html
+  
+<aside id="sidebar" class="fixed h-screen bg-gray-900 border-r border-gray-700 p-4 flex flex-col z-50 w-16 md:w-64 aria-[expanded=true]:w-64 md:aria-[expanded=false]:w-16" aria-expanded="true">
+        <div class="flex items-center gap-2 mb-8 overflow-hidden">
+            <i class="fas fa-map-marked-alt text-purple-400 text-2xl flex-shrink-0"></i>
+            <h1 class="text-xl font-bold text-white whitespace-nowrap overflow-hidden">Centimap</h1>
+        </div>
+
+        <nav class="flex-1">
+            <ul class="space-y-2">
+                <li>
+                    <a href="/auth/res/dashboard" class="flex items-center gap-3 p-3 rounded-lg bg-gray-800 text-white">
+                        <i class="fas fa-tachometer-alt flex-shrink-0"></i>
+                        <span class="whitespace-nowrap overflow-hidden">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/auth/res/dashboard/survey/add" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 text-white transition-colors">
+                        <i class="fas fa-plus-circle flex-shrink-0"></i>
+                        <span class="whitespace-nowrap overflow-hidden">Create Survey</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 text-white transition-colors">
+                        <i class="fas fa-edit flex-shrink-0"></i>
+                        <span class="whitespace-nowrap overflow-hidden">My Surveys</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 text-white transition-colors">
+                        <i class="fas fa-chart-bar flex-shrink-0"></i>
+                        <span class="whitespace-nowrap overflow-hidden">Analytics</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 text-white transition-colors">
+                        <i class="fas fa-cog flex-shrink-0"></i>
+                        <span class="whitespace-nowrap overflow-hidden">Settings</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 text-white transition-colors">
+                        <i class="fas fa-sign-out-alt flex-shrink-0"></i>
+                        <span id="logout" class="whitespace-nowrap overflow-hidden">Log Out</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="mt-auto pt-4 border-t border-gray-700 overflow-hidden">
+            <div class="flex items-center gap-3 p-3">
+                <img src="https://placehold.co/40x40" alt="User avatar" class="rounded-full flex-shrink-0" />
+                <div class="whitespace-nowrap overflow-hidden user-info-text">
+                    <p class="text-white font-medium">Researcher Name</p>
+                    <p class="text-gray-400 text-sm">user@university.edu</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main id="main-content" class="p-6 bg-gray-950 min-h-screen transition-all duration-300">
+        <header class="flex justify-between items-center mb-8">
+            <button id="sidebar-toggle" class="p-2 rounded-lg hover:bg-gray-800 text-white">
+                <i class="fas fa-bars md:hidden" id="mobile-toggle-icon"></i>
+                <i class="fas fa-arrow-left hidden md:block" id="desktop-toggle-icon"></i>
+            </button>
+            <h2 class="text-2xl font-bold text-white">
+
+            <span id="user-data"> </span>
+
+            </h2>
+            <div class="flex items-center gap-4">
+                <button class="p-2 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white">
+                    <i class="fas fa-bell"></i>
+                </button>
+                <button class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg text-white font-medium">
+                    New Survey
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-400 mb-1">Active Surveys</p>
+                        <p class="text-3xl font-bold text-white">12</p>
+                    </div>
+                    <div class="p-3 rounded-full bg-gray-800 text-purple-400">
+                        <i class="fas fa-poll-h text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-400 mb-1">Total Responses</p>
+                        <p class="text-3xl font-bold text-white">1,248</p>
+                    </div>
+                    <div class="p-3 rounded-full bg-gray-800 text-pink-400">
+                        <i class="fas fa-users text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-400 mb-1">Completion Rate</p>
+                        <p class="text-3xl font-bold text-white">78%</p>
+                    </div>
+                    <div class="p-3 rounded-full bg-gray-800 text-green-400">
+                        <i class="fas fa-check-circle text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden mb-8">
+            
+
+
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-white"> My Surveys</h3>
+                <button class="text-purple-400 hover:text-pink-400 transition-colors">
+                    View All
+                </button>
+            </div>
+
+            <div id="anygrid"> </div>
+            
+
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-white">Response Rate</h3>
+                    <select class="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1 text-sm">
+                        <option>Last 7 days</option>
+                        <option>Last 30 days</option>
+                        <option>Last 90 days</option>
+                    </select>
+                </div>
+                <div class="h-64 bg-gray-800 rounded-lg flex items-center justify-center">
+                    <p class="text-gray-400">Chart visualization would appear here</p>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                <h3 class="text-lg font-semibold text-white mb-4">Survey Completion</h3>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm text-white mb-1">
+                            <span>Academic Research Habits 2023</span>
+                            <span>78%</span>
+                        </div>
+                        <div class="w-full bg-gray-800 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full" style="width: 78%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm text-white mb-1">
+                            <span>Library Usage Patterns</span>
+                            <span>65%</span>
+                        </div>
+                        <div class="w-full bg-gray-800 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full" style="width: 65%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-2xl">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-white">Create New Survey</h3>
+                <button class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block text-gray-400 mb-2">Survey Title</label>
+                    <input type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-400" placeholder="Enter survey title" />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 mb-2">Description</label>
+                    <textarea class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-400" rows="3" placeholder="Enter survey description"></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button class="px-4 py-2 border border-gray-700 rounded-lg text-white hover:bg-gray-800 transition-colors">
+                        Cancel
+                    </button>
+                    <button class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg text-white font-medium">
+                        Create Survey
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>

@@ -1,4 +1,5 @@
 @script
+import '/public/auth/css/auth.css';
 import '/public/auth/js/confirm.js';
 
 @end

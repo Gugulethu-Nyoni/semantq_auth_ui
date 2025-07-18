@@ -1,6 +1,8 @@
 @script
+import '/public/auth/css/auth.css';
 import '/public/auth/js/login.js';
 @end
+
 
 @style
 
