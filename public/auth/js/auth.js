@@ -143,9 +143,9 @@ async logout() {
 },
 
   getDashboardPath() {
-    return _auth.value.accessLevel >= 3 ? AppConfig.SUPER_ADMIN_DASHBOARD :
-           _auth.value.accessLevel === 2 ? AppConfig.RESEARCHER_DASHBOARD :
-           AppConfig.USER_DASHBOARD;
+    const accessLevel = _auth.value.accessLevel;
+    // Use the new mapping object, with a fallback for unconfigured levels
+    return AppConfig.DASHBOARD_PATHS[accessLevel] || AppConfig.DASHBOARD_PATHS[1];
   }
 };
 
