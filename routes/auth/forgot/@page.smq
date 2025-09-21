@@ -1,6 +1,7 @@
 @script
 import '/public/auth/css/auth.css';
-import '/public/auth/js/forgot-password.js';
+import ForgotPassword from '$components/auth/ForgotPassword';
+
 @end
 
 @style
@@ -17,6 +18,7 @@ import '/public/auth/js/forgot-password.js';
 @end
 
 @html
+<ForgotPassword />
  <div class="auth-container">
   <div class="auth-card">
     <h1>Reset Password</h1>

@@ -1,6 +1,7 @@
 @script
 import '/public/auth/css/auth.css';
-import '/public/auth/js/login.js';
+import Login from '$components/auth/Login';
+
 @end
 
 
@@ -9,6 +10,8 @@ import '/public/auth/js/login.js';
 @end
 
 @html
+<Login />
+
  <div class="auth-container">
   <div class="auth-card">
 

@@ -1,7 +1,6 @@
 @script
 import '/public/auth/css/auth.css';
-import '/public/auth/js/confirm.js';
-
+import Confirm from '$components/auth/Confirm';
 @end
 
 @style
@@ -51,6 +50,8 @@ import '/public/auth/js/confirm.js';
 @end
 
 @html
+<Confirm />
+
  <div class="auth-container">
   <div class="auth-card">
     <div class="auth-icon">📧</div>

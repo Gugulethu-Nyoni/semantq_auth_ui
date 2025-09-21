@@ -1,6 +1,7 @@
 @script
 import '/public/auth/css/auth.css';
-import '/public/auth/js/signup.js';
+import SignUp from '$components/auth/SignUp';
+
 @end
 
 @style
@@ -20,6 +21,8 @@ import '/public/auth/js/signup.js';
 @end
 
 @html
+
+<SignUp />
 
 <div class="auth-container">
   <div class="auth-card">
