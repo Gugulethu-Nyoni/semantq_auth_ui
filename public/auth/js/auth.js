@@ -33,7 +33,7 @@ export const auth = {
   // Methods
   async login(email, password) {
     console.log('[AUTH] Attempting login for:', email);
-    const res = await fetch(`${AppConfig.BASE_URL}/auth/login`, {
+    const res = await fetch(`${AppConfig.BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
