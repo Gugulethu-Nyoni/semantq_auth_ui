@@ -33,7 +33,7 @@ export const auth = {
   // Methods
   async login(email, password) {
     console.log('[AUTH] Attempting login for:', email);
-    const res = await fetch(`${AppConfig.BASE_URL}/login`, {
+    const res = await fetch(`${AppConfig.BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -221,7 +221,7 @@ $effect(() => {
     const timer = setTimeout(() => {
       console.log('[AUTH] Session expired - logging out and redirecting to login page.');
       _auth.value.isAuthenticated = false;
-      window.location.href = '/login';
+      window.location.href = '/auth/login';
     }, remainingMs);
 
     return () => {
