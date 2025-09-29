@@ -2,7 +2,7 @@ import AppConfig from './config.js';
 import { $state, $derived, $effect } from '@semantq/state';
 
 /* ==================== */
-/*     CORE STATE       */
+/* CORE STATE      */
 /* ==================== */
 const _auth = $state({
   isAuthenticated: false,
@@ -18,13 +18,13 @@ const _auth = $state({
 console.log('[AUTH] Initial _auth state:', _auth.value);
 
 /* ==================== */
-/*     PUBLIC API       */
+/* PUBLIC API      */
 /* ==================== */
-export const auth = {
+const auth = {
   // Reactive state
   state: {
     isAuthenticated: $derived(() => _auth.value.isAuthenticated),
-    rawUser: $derived(() => _auth.value.user),   // raw user object
+    rawUser: $derived(() => _auth.value.user),
     accessLevel: $derived(() => _auth.value.accessLevel),
     userId: $derived(() => _auth.value.user?.id || null),
     userName: $derived(() => _auth.value.user?.name || 'Guest')
@@ -70,43 +70,65 @@ export const auth = {
   },
 
   async validate() {
-  console.log('[AUTH] Validating session...');
-  try {
-    const res = await fetch(`${AppConfig.BASE_URL}/validate-session`, {
-      method: 'GET',
-      credentials: 'include'
-    });
+    console.log('[AUTH] Validating session...');
+    try {
+      const res = await fetch(`${AppConfig.BASE_URL}/validate-session`, {
+        method: 'GET',
+        credentials: 'include'
+      });
 
-    const result = res.ok ? await res.json() : { success: false };
-    const isValid = result.success === true;
+      const result = res.ok ? await res.json() : { success: false };
+      const isValid = result.success === true;
 
-    if (!isValid) {
+      if (!isValid) {
+        _auth.value = {
+          isAuthenticated: false,
+          user: null,
+          accessLevel: null,
+          lastValidated: null
+        };
+        console.log('[AUTH] Session invalid. User logged out.');
+
+        // Redirect to login page
+        window.location.href = '/auth/login';
+
+        return false;
+      } else {
+        _auth.value = {
+          ..._auth.value,
+          isAuthenticated: true,
+          lastValidated: Date.now()
+        };
+        console.log('[AUTH] Session valid, state updated:', _auth.value);
+      }
+
+      console.log('[AUTH] Session storage snapshot after validate:', sessionStorage.getItem('auth-session'));
+      return isValid;
+
+    } catch (error) {
+      console.error('[AUTH] Session validation error:', error);
       _auth.value = {
         isAuthenticated: false,
         user: null,
         accessLevel: null,
         lastValidated: null
       };
-      console.log('[AUTH] Session invalid. User logged out.');
 
-      // Redirect to login page
+      // Redirect to login page on error too
       window.location.href = '/auth/login';
 
       return false;
-    } else {
-      _auth.value = {
-        ..._auth.value,
-        isAuthenticated: true,
-        lastValidated: Date.now()
-      };
-      console.log('[AUTH] Session valid, state updated:', _auth.value);
     }
+  },
 
-    console.log('[AUTH] Session storage snapshot after validate:', sessionStorage.getItem('auth-session'));
-    return isValid;
+  async logout() {
+    console.log('[AUTH] Logging out...');
+    await fetch(`${AppConfig.BASE_URL}/logout`, {
+      method: 'POST',
+      credentials: 'include'
+    });
 
-  } catch (error) {
-    console.error('[AUTH] Session validation error:', error);
+    // Reset state
     _auth.value = {
       isAuthenticated: false,
       user: null,
@@ -114,33 +136,12 @@ export const auth = {
       lastValidated: null
     };
 
-    // Redirect to login page on error too
+    console.log('[AUTH] State reset after logout:', _auth.value);
+    console.log('[AUTH] Session storage snapshot after logout:', sessionStorage.getItem('auth-session'));
+
+    // Redirect after logout
     window.location.href = '/auth/login';
-
-    return false;
-  }
-},
-async logout() {
-  console.log('[AUTH] Logging out...');
-  await fetch(`${AppConfig.BASE_URL}/logout`, {
-    method: 'POST',
-    credentials: 'include'
-  });
-
-  // Reset state
-  _auth.value = {
-    isAuthenticated: false,
-    user: null,
-    accessLevel: null,
-    lastValidated: null
-  };
-
-  console.log('[AUTH] State reset after logout:', _auth.value);
-  console.log('[AUTH] Session storage snapshot after logout:', sessionStorage.getItem('auth-session'));
-
-  // Redirect after logout
-  window.location.href = '/auth/login';
-},
+  },
 
   getDashboardPath() {
     const accessLevel = _auth.value.accessLevel;
@@ -150,56 +151,59 @@ async logout() {
 };
 
 /* ==================== */
-/*  USER PROXY FOR EASY PROPERTY ACCESS */
+/* USER OBJECT WITH PROPER PROPERTIES */
 /* ==================== */
 export const user = {
   get id() {
-    return _auth.value.user?.id ?? null;
+    return auth.state.userId.value;
   },
   get name() {
-    return _auth.value.user?.name ?? 'Guest';
+    return auth.state.userName.value;
   },
   get email() {
-    return _auth.value.user?.email ?? '';
+    return auth.state.rawUser.value?.email ?? '';
   },
   get accessLevel() {
-    return _auth.value.user?.access_level ?? null;
+    return auth.state.accessLevel.value;
   },
-  // add more getters as needed...
+  // Backward compatibility - access_level property
+  get access_level() {
+    return auth.state.accessLevel.value;
+  },
+  // Get the complete raw user object
+  get raw() {
+    return auth.state.rawUser.value;
+  },
+  // Add a method to check if user exists
+  get exists() {
+    return !!auth.state.rawUser.value;
+  }
 };
 
+console.log("User Object Properties:", {
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  accessLevel: user.accessLevel,
+  access_level: user.access_level
+});
+
 /* ==================== */
-/*  NAMED STATE EXPORTS */
+/* CLEAN NAMED EXPORTS */
 /* ==================== */
 export const isAuthenticated = auth.state.isAuthenticated;
 export const accessLevel = auth.state.accessLevel;
 export const login = auth.login;
 export const getDashboardPath = auth.getDashboardPath;
 export const logout = auth.logout;
-
-
-// At the bottom of auth.js:
-
-window.addEventListener('DOMContentLoaded', () => {
-  const logoutBtn = document.getElementById('logout');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      auth.logout();  // note the method is on auth object
-    });
-  }
-});
-
-
-
-
+export const validate = auth.validate;
 
 export const redirectToDashboard = () => {
   window.location.href = auth.getDashboardPath();
 };
 
 /* ==================== */
-/*     AUTO-SETUP       */
+/* AUTO-SETUP & EFFECTS */
 /* ==================== */
 $effect(() => {
   if (auth.state.isAuthenticated.value) {
@@ -236,3 +240,14 @@ if (!window.location.pathname.includes('login')) {
   console.log('[AUTH] Performing initial session validation...');
   auth.validate();
 }
+
+// Logout button handler
+window.addEventListener('DOMContentLoaded', () => {
+  const logoutBtn = document.getElementById('logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      auth.logout();
+    });
+  }
+});
