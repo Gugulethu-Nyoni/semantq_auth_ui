@@ -26,15 +26,15 @@ console.log('[AUTH] Initial _auth state:', _auth.value);
  * if the authenticated user's level meets the requirement.
  * If validation fails, redirects to the appropriate dashboard or login.
  */
-/**
- * Checks if the current path requires an access level and validates
- * if the authenticated user's level meets the requirement.
- * If validation fails, redirects to the appropriate dashboard or login.
- */
 function enforceAuthorization() {
     const isAuthenticated = auth.state.isAuthenticated.value;
     const accessLevel = auth.state.accessLevel.value;
-    const currentPath = window.location.pathname;
+    
+    // IMPORTANT: Normalize path by removing trailing slash for base comparisons
+    // and ensuring no query string interference.
+    let currentPath = window.location.pathname.replace(/\/+$/, '');
+    if (currentPath === "") currentPath = "/";
+
 
     const PUBLIC_ROUTES = [
         '/auth/login', 
@@ -62,21 +62,17 @@ function enforceAuthorization() {
     }
 
     // --- 2. Authorization Check: STRICT BASE DASHBOARD MATCH ---
-    // Check if the current path EXACTLY matches a primary DASHBOARD_PATH
-    // but the user's access level is NOT that path's designated level.
-
+    // Enforce that Level 3 users cannot access the Level 1 dashboard path exactly.
     let isStrictMatchViolation = false;
     let targetLevel = null;
 
-    // Iterate through the dashboard paths to find an EXACT match
     for (const level in AppConfig.DASHBOARD_PATHS) {
         const path = AppConfig.DASHBOARD_PATHS[level];
-        // Check for an EXACT path match
+        // Check for an EXACT normalized path match
         if (currentPath === path) {
             targetLevel = parseInt(level, 10);
             
-            // If the path exactly matches a base dashboard path (e.g., /auth/dashboard)
-            // AND the user's level is NOT the target level (e.g., Admin level 3 on Level 1 path)
+            // If the user's level is NOT the target level (e.g., Level 3 on Level 1 path)
             if (accessLevel !== targetLevel) {
                 isStrictMatchViolation = true;
                 break;
@@ -86,19 +82,17 @@ function enforceAuthorization() {
 
     if (isStrictMatchViolation) {
         console.warn(`[AUTH GUARD] Strict access violation. User level ${accessLevel} restricted from base dashboard path for level ${targetLevel}. Redirecting.`);
-        // Redirect the unauthorized user to their own designated dashboard path
         redirectToDashboard();
         return;
     }
     
     // --- 3. Authorization Check: MINIMUM LEVEL FOR SUB-PATHS ---
-    // If it's not a base dashboard path (i.e., it's a sub-page like /admin/settings), 
-    // we fall back to the "minimum required access" logic using AUTHORIZATION_MAP.
+    // If it's a sub-path, we use the startsWith logic from AUTHORIZATION_MAP.
 
     let requiredLevel = 1; // Default minimum level for authenticated pages.
     
     for (const rule of AppConfig.AUTHORIZATION_MAP) {
-        // Use startsWith for sub-paths (e.g., /auth/dashboard/superadmin/users)
+        // Use startsWith for sub-paths (e.g., /superadmin/member)
         if (currentPath.startsWith(rule.pathPrefix)) {
             requiredLevel = rule.requiredLevel;
             break; 
@@ -192,7 +186,9 @@ const auth = {
         return false;
       } else {
         _auth.value = {
-          ..._auth.value,
+          // NOTE: If the server returns new user data, you should update the 'user' object here too.
+          // For now, we only update authentication status and validation time.
+          ..._auth.value, 
           isAuthenticated: true,
           lastValidated: Date.now()
         };
@@ -252,15 +248,19 @@ const auth = {
 /* ==================== */
 export const user = {
   get id() {
+    // SAFEGUARDED: Reads from derived state which handles null
     return auth.state.userId.value;
   },
   get name() {
+    // SAFEGUARDED: Reads from derived state which returns 'Guest' if null
     return auth.state.userName.value;
   },
   get email() {
+    // SAFEGUARDED: Uses optional chaining on rawUser.value
     return auth.state.rawUser.value?.email ?? '';
   },
   get accessLevel() {
+    // SAFEGUARDED: Reads from derived state, which is null if logged out
     return auth.state.accessLevel.value;
   },
   // Backward compatibility - access_level property
@@ -269,6 +269,7 @@ export const user = {
   },
   // Get the complete raw user object
   get raw() {
+    // SAFEGUARDED: Returns null if logged out
     return auth.state.rawUser.value;
   },
   // Add a method to check if user exists
@@ -307,7 +308,10 @@ export const redirectToDashboard = () => {
 $effect(() => {
     // This effect runs on initial load and whenever 'isAuthenticated' or 'accessLevel' changes
     console.log('[AUTH GUARD] Running authorization check due to state change.');
-    enforceAuthorization();
+    // Check if the state is fully loaded before enforcing rules, especially on initial load
+    if (_auth.value.lastValidated !== null || !auth.state.isAuthenticated.value) {
+        enforceAuthorization();
+    }
 }, [auth.state.isAuthenticated, auth.state.accessLevel]); // Depend on state changes
 
 
