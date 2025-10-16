@@ -15,40 +15,59 @@
  * production: 'https://api.example.com'
  * }
  */
+/**
+ * config.js
+ * Application runtime configuration object.
+ */
 const AppConfig = {
-  ENV: (typeof window !== 'undefined' && window.location.hostname.includes('localhost'))
-    ? 'development'
-    : 'production',
+    ENV: (typeof window !== 'undefined' && window.location.hostname.includes('localhost'))
+      ? 'development'
+      : 'production',
 
-  BASE_URLS: {
-    development: 'http://localhost:3003/@semantq/auth',
-    production: 'https://example.com'
-  },
+    BASE_URLS: {
+      development: 'http://localhost:3003/@semantq/auth',
+      production: 'https://example.com'
+    },
 
-  // Removed the generic DASHBOARD as it's now specific to access levels
-  // DASHBOARD: 'dashboard', 
+    // 🔑 Core definition: Maps access_level (key) to its default dashboard path (value).
+    DASHBOARD_PATHS: {
+      1: '/auth/dashboard',
+      2: '/auth/campus/admin',
+      3: '/auth/dashboard/superadmin'
+    },
 
- 
-  // You can add more specific dashboards here if needed, e.g., SUPER_ADMIN_DASHBOARD: '/dashboard/superadmin'
-  
-  // here you control what access level you want to allow from front end
-  // end <a href="/auth/signup?ref=2"> Sign Up </a> 
-  // so the default is 1 - end user access level so no need to set that up in URL params
+    // 🔒 DYNAMICALLY GENERATED AUTHORIZATION MAP
+    // This map is derived from DASHBOARD_PATHS to ensure the logic is never hardcoded.
+    // The higher the level, the more specific (and restrictive) the path should be.
+    // We sort it in descending order of level (3, 2, 1) for path-matching priority.
+    get AUTHORIZATION_MAP() {
+        const paths = this.DASHBOARD_PATHS;
+        const levels = Object.keys(paths)
+            .map(level => parseInt(level, 10))
+            .filter(level => level > 0); // Ignore level 0 if present
 
-// NEW: Dashboard paths based on access levels
-  DASHBOARD_PATHS: {
-    1: '/auth/dashboard',
-    2: '/auth/campus/admin',
-    3: '/auth/dashboard/superadmin'
-  },
+        // Sort descending (3, 2, 1) so stricter checks run first in auth.js
+        levels.sort((a, b) => b - a); 
 
- ALLOWED_REF_LEVELS: ['1'],
-  /**
-   * Returns the base API URL for the current environment
-   */
-  get BASE_URL() {
-    return this.BASE_URLS[this.ENV] || this.BASE_URLS.development;
-  }
+        return levels.map(level => ({
+            pathPrefix: paths[level],
+            requiredLevel: level
+        }));
+        
+        /* The resulting array will look like:
+           [
+             { pathPrefix: '/auth/dashboard/superadmin', requiredLevel: 3 },
+             { pathPrefix: '/auth/campus/admin', requiredLevel: 2 },
+             { pathPrefix: '/auth/dashboard', requiredLevel: 1 },
+           ]
+        */
+    },
+
+    ALLOWED_REF_LEVELS: ['1'],
+    
+    get BASE_URL() {
+      return this.BASE_URLS[this.ENV] || this.BASE_URLS.development;
+    }
 };
 
 export default AppConfig;

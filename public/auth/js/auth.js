@@ -2,7 +2,7 @@ import AppConfig from './config.js';
 import { $state, $derived, $effect } from '@semantq/state';
 
 /* ==================== */
-/* CORE STATE      */
+/* CORE STATE             */
 /* ==================== */
 const _auth = $state({
   isAuthenticated: false,
@@ -18,7 +18,104 @@ const _auth = $state({
 console.log('[AUTH] Initial _auth state:', _auth.value);
 
 /* ==================== */
-/* PUBLIC API      */
+/* ROUTER AUTHORIZATION LOGIC */
+/* ==================== */
+
+/**
+ * Checks if the current path requires an access level and validates
+ * if the authenticated user's level meets the requirement.
+ * If validation fails, redirects to the appropriate dashboard or login.
+ */
+/**
+ * Checks if the current path requires an access level and validates
+ * if the authenticated user's level meets the requirement.
+ * If validation fails, redirects to the appropriate dashboard or login.
+ */
+function enforceAuthorization() {
+    const isAuthenticated = auth.state.isAuthenticated.value;
+    const accessLevel = auth.state.accessLevel.value;
+    const currentPath = window.location.pathname;
+
+    const PUBLIC_ROUTES = [
+        '/auth/login', 
+        '/auth/signup', 
+        '/' 
+    ];
+    
+    const isPublicRoute = PUBLIC_ROUTES.some(route => currentPath === route);
+
+    // --- 1. Authentication Check & Redirect Auth'd Users from Public Routes ---
+    if (!isAuthenticated) {
+        if (!isPublicRoute) {
+            console.warn('[AUTH GUARD] Unauthenticated access. Redirecting to login.');
+            if (currentPath !== '/auth/login') {
+                window.location.href = '/auth/login';
+            }
+        }
+        return;
+    }
+
+    if (isPublicRoute) {
+        console.log('[AUTH GUARD] Authenticated user on public route. Redirecting to dashboard.');
+        redirectToDashboard();
+        return;
+    }
+
+    // --- 2. Authorization Check: STRICT BASE DASHBOARD MATCH ---
+    // Check if the current path EXACTLY matches a primary DASHBOARD_PATH
+    // but the user's access level is NOT that path's designated level.
+
+    let isStrictMatchViolation = false;
+    let targetLevel = null;
+
+    // Iterate through the dashboard paths to find an EXACT match
+    for (const level in AppConfig.DASHBOARD_PATHS) {
+        const path = AppConfig.DASHBOARD_PATHS[level];
+        // Check for an EXACT path match
+        if (currentPath === path) {
+            targetLevel = parseInt(level, 10);
+            
+            // If the path exactly matches a base dashboard path (e.g., /auth/dashboard)
+            // AND the user's level is NOT the target level (e.g., Admin level 3 on Level 1 path)
+            if (accessLevel !== targetLevel) {
+                isStrictMatchViolation = true;
+                break;
+            }
+        }
+    }
+
+    if (isStrictMatchViolation) {
+        console.warn(`[AUTH GUARD] Strict access violation. User level ${accessLevel} restricted from base dashboard path for level ${targetLevel}. Redirecting.`);
+        // Redirect the unauthorized user to their own designated dashboard path
+        redirectToDashboard();
+        return;
+    }
+    
+    // --- 3. Authorization Check: MINIMUM LEVEL FOR SUB-PATHS ---
+    // If it's not a base dashboard path (i.e., it's a sub-page like /admin/settings), 
+    // we fall back to the "minimum required access" logic using AUTHORIZATION_MAP.
+
+    let requiredLevel = 1; // Default minimum level for authenticated pages.
+    
+    for (const rule of AppConfig.AUTHORIZATION_MAP) {
+        // Use startsWith for sub-paths (e.g., /auth/dashboard/superadmin/users)
+        if (currentPath.startsWith(rule.pathPrefix)) {
+            requiredLevel = rule.requiredLevel;
+            break; 
+        }
+    }
+
+    // Compare the user's level to the dynamically required level for the section
+    if (accessLevel < requiredLevel) {
+        console.warn(`[AUTH GUARD] Unauthorized access. User level ${accessLevel} restricted from section requiring level ${requiredLevel}. Redirecting.`);
+        redirectToDashboard();
+    } else {
+        console.log(`[AUTH GUARD] Authorization successful. User level ${accessLevel} granted access to ${currentPath}.`);
+    }
+}
+
+/* ==================== */
+/* PUBLIC API             */
 /* ==================== */
 const auth = {
   // Reactive state
@@ -205,6 +302,16 @@ export const redirectToDashboard = () => {
 /* ==================== */
 /* AUTO-SETUP & EFFECTS */
 /* ==================== */
+
+// NEW EFFECT: Run authorization check whenever the state changes
+$effect(() => {
+    // This effect runs on initial load and whenever 'isAuthenticated' or 'accessLevel' changes
+    console.log('[AUTH GUARD] Running authorization check due to state change.');
+    enforceAuthorization();
+}, [auth.state.isAuthenticated, auth.state.accessLevel]); // Depend on state changes
+
+
+// Existing effect: Session heartbeat (validate every 5 minutes)
 $effect(() => {
   if (auth.state.isAuthenticated.value) {
     console.log('[AUTH] Starting session heartbeat validation every 5 minutes.');
@@ -216,6 +323,7 @@ $effect(() => {
   }
 });
 
+// Existing effect: Auto-redirect timer for session expiry (1 hour)
 $effect(() => {
   if (auth.state.isAuthenticated.value) {
     const expiryMs = 3600000; // 1 hour
@@ -236,6 +344,7 @@ $effect(() => {
 });
 
 // Initial validation on page load except on login page
+// Note: This validates, which in turn triggers the $effect for authorization.
 if (!window.location.pathname.includes('login')) {
   console.log('[AUTH] Performing initial session validation...');
   auth.validate();
