@@ -1,402 +1,336 @@
-import AppConfig from './config.js';
-import { $state, $derived, $effect } from '@semantq/state';
+// semantq_auth/controllers/authController.js
+import { signupUser, loginUser, initiatePasswordReset, resetUserPassword } from '../services/authService.js';
+import { emailServicePromise } from '../services/email.js';
+import { successResponse, errorResponse } from '../lib/utils/response.js';
+import jwt from 'jsonwebtoken';
+import config from '../config/auth.js';
+import models from '../models/index.js';
 
-/* ==================== */
-/* CORE STATE             */
-/* ==================== */
-const _auth = $state({
-  isAuthenticated: false,
-  user: null,
-  accessLevel: null,
-  lastValidated: null
-}, {
-  key: 'auth-session',
-  storage: sessionStorage,
-  debounce: 100
-});
+const { findUserByVerificationToken, verifyUserById, findUserById } = models;
 
-console.log('[AUTH] Initial _auth state:', _auth.value);
+import { getCookieOptions } from '../config/cookies.js';
 
-/* ==================== */
-/* ROUTER AUTHORIZATION LOGIC */
-/* ==================== */
+// Signup - UPDATED to accept username
+export const signupHandler = async (req, res) => {
+  try {
+    // Extract ALL fields from request body - ADDED username
+    const { 
+      name, 
+      email, 
+      password, 
+      username, // NEW: Added username
+      ref, 
+      uplineId,
+      surname,
+      mobile,
+      product_package,
+      bank_name,
+      branch_name,
+      branch_code,
+      account_holder,
+      account_number
+    } = req.body;
 
-/**
- * Checks if the current path requires an access level and validates
- * if the authenticated user's level meets the requirement.
- * If validation fails, redirects to the appropriate dashboard or login.
- */
-function enforceAuthorization() {
-    const isAuthenticated = auth.state.isAuthenticated.value;
-    const accessLevel = auth.state.accessLevel.value;
-    
-    // IMPORTANT: Normalize path by removing trailing slash for base comparisons
-    // and ensuring no query string interference.
-    let currentPath = window.location.pathname.replace(/\/+$/, '');
-    if (currentPath === "") currentPath = "/";
-
-
-    const PUBLIC_ROUTES = [
-        '/auth/login', 
-        '/auth/signup', 
-        '/' 
-    ];
-    
-    const isPublicRoute = PUBLIC_ROUTES.some(route => currentPath === route);
-
-    // --- 1. Authentication Check & Redirect Auth'd Users from Public Routes ---
-    if (!isAuthenticated) {
-        if (!isPublicRoute) {
-            console.warn('[AUTH GUARD] Unauthenticated access. Redirecting to login.');
-            if (currentPath !== '/auth/login') {
-                window.location.href = '/auth/login';
-            }
-        }
-        return;
+    // Required fields check
+    if (!name || !email || !password || !surname || !mobile) {
+      return errorResponse(res, 'All required fields are required.', 400);
     }
 
-    if (isPublicRoute) {
-        console.log('[AUTH GUARD] Authenticated user on public route. Redirecting to dashboard.');
-        redirectToDashboard();
-        return;
+    if (!uplineId) {
+      return errorResponse(res, 'Upline or Sponsor is required.', 400);
     }
 
-    // --- 2. Authorization Check: STRICT BASE DASHBOARD MATCH ---
-    // Enforce that Level 3 users cannot access the Level 1 dashboard path exactly.
-    let isStrictMatchViolation = false;
-    let targetLevel = null;
-
-    for (const level in AppConfig.DASHBOARD_PATHS) {
-        const path = AppConfig.DASHBOARD_PATHS[level];
-        // Check for an EXACT normalized path match
-        if (currentPath === path) {
-            targetLevel = parseInt(level, 10);
-            
-            // If the user's level is NOT the target level (e.g., Level 3 on Level 1 path)
-            if (accessLevel !== targetLevel) {
-                isStrictMatchViolation = true;
-                break;
-            }
-        }
+    // NEW: Optional username validation if provided
+    if (username) {
+      // Example: Basic username validation
+      if (username.length < 3) {
+        return errorResponse(res, 'Username must be at least 3 characters long.', 400);
+      }
+      if (!/^[a-z0-9]+$/.test(username)) {
+        return errorResponse(res, 'Username can only contain lowercase letters and numbers.', 400);
+      }
+      if (!/^[a-z]/.test(username)) {
+        return errorResponse(res, 'Username must start with a letter.', 400);
+      }
     }
 
-    if (isStrictMatchViolation) {
-        console.warn(`[AUTH GUARD] Strict access violation. User level ${accessLevel} restricted from base dashboard path for level ${targetLevel}. Redirecting.`);
-        redirectToDashboard();
-        return;
-    }
-    
-    // --- 3. Authorization Check: MINIMUM LEVEL FOR SUB-PATHS ---
-    // If it's a sub-path, we use the startsWith logic from AUTHORIZATION_MAP.
-
-    let requiredLevel = 1; // Default minimum level for authenticated pages.
-    
-    for (const rule of AppConfig.AUTHORIZATION_MAP) {
-        // Use startsWith for sub-paths (e.g., /superadmin/member)
-        if (currentPath.startsWith(rule.pathPrefix)) {
-            requiredLevel = rule.requiredLevel;
-            break; 
-        }
+    // Validate bank details if product package is selected
+    if (product_package && product_package !== 'a') { // Assuming 'a' might not require bank details
+      if (!bank_name || !branch_name || !branch_code || !account_holder || !account_number) {
+        return errorResponse(res, 'Bank details are required for selected package.', 400);
+      }
     }
 
-    // Compare the user's level to the dynamically required level for the section
-    if (accessLevel < requiredLevel) {
-        console.warn(`[AUTH GUARD] Unauthorized access. User level ${accessLevel} restricted from section requiring level ${requiredLevel}. Redirecting.`);
-        redirectToDashboard();
-    } else {
-        console.log(`[AUTH GUARD] Authorization successful. User level ${accessLevel} granted access to ${currentPath}.`);
-    }
-}
+    const upline = await models.getUpline(parseInt(uplineId));
 
-/* ==================== */
-/* PUBLIC API             */
-/* ==================== */
-const auth = {
-  // Reactive state
-  state: {
-    isAuthenticated: $derived(() => _auth.value.isAuthenticated),
-    rawUser: $derived(() => _auth.value.user),
-    accessLevel: $derived(() => _auth.value.accessLevel),
-    userId: $derived(() => _auth.value.user?.id || null),
-    userName: $derived(() => _auth.value.user?.name || 'Guest'),
-    userEmail: $derived(() => _auth.value.user?.email || ''),
-    userUsername: $derived(() => _auth.value.user?.username || null) // NEW: Username field
-  },
-
-  // Methods - UPDATED to accept identifier (email or username)
-  async login(identifier, password) {
-    console.log('[AUTH] Attempting login with identifier:', identifier);
-    
-    // Build payload - include both identifier and email for backward compatibility
-    const payload = { 
-      identifier, 
-      password,
-      // Keep email field for backward compatibility with older servers
-      email: identifier.includes('@') ? identifier : undefined 
+    const signUpData = {
+      name: name,
+      surname: surname,
+      email: email,
+      username: username, // NEW: Add username
+      mobile: mobile,
+      password: password,
+      ref: ref,
+      product_package: product_package || 'a', // Default to 'a' if not provided
+      level_1: upline.id,
+      level_2: upline.level_1,
+      level_3: upline.level_2,
+      level_4: upline.level_3,
+      level_5: upline.level_4,
+      level_6: upline.level_5,
+      level_7: upline.level_6,
+      level_8: upline.level_7,
+      level_9: upline.level_9,
+      level_10: upline.level_10,
+      level_11: upline.level_11,
+      level_12: upline.level_12,
+      stage: 0,
+      // Bank details
+      bank_name: bank_name,
+      branch_name: branch_name,
+      branch_code: branch_code,
+      account_holder: account_holder,
+      account_number: account_number
     };
-    
-    const res = await fetch(`${AppConfig.BASE_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload)
+
+    console.log('Signup data being sent to service:', signUpData);
+
+    // Pass signUpData to signupUser service
+    const { verification_token } = await signupUser(signUpData);
+
+    const emailService = await emailServicePromise;
+    await emailService.sendConfirmationEmail({
+      to: email,
+      name,
+      token: verification_token
     });
 
-    if (!res.ok) {
-      const contentType = res.headers.get('Content-Type');
-      let message = 'Login failed';
-      
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await res.json();
-        message = errorData.message || message;
-      } else {
-        message = await res.text();
-      }
-      
-      console.warn('[AUTH] Login failed:', message);
-      return { success: false, message };
+    return successResponse(
+      res,
+      'Account created. Please check your email to verify.',
+      { token: verification_token },
+      200
+    );
+
+  } catch (err) {
+    console.error('[AUTH] Signup error:', err);
+    return errorResponse(res, err.message || 'Signup failed.', 500);
+  }
+};
+
+// Confirm Email - UNCHANGED
+export const confirmEmailHandler = async (req, res) => {
+  const { token } = req.body;
+
+  console.log('Received token:', token);
+  // NOTE: The original code had a duplicate user lookup here.
+  // The jwt.verify will handle the token validity, and findUserByVerificationToken
+  // is then used to ensure the user exists and is not already verified.
+  // const user = await findUserByVerificationToken(token); // This line can be removed or kept for initial debug
+  // console.log('User found:', user);
+
+  if (!token) return errorResponse(res, 'Verification token missing.', 400);
+
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret); // This decodes the token
+    const user = await findUserByVerificationToken(token); // This fetches user by the token
+    if (!user) return errorResponse(res, 'Invalid or expired token.', 400);
+    if (user.is_verified) return successResponse(res, 'Email already verified.', null, 200);
+
+    await verifyUserById(user.id);
+    return successResponse(res, 'Email verified successfully.', null, 200);
+
+  } catch (err) {
+    console.error('[AUTH] Email confirmation error:', err);
+    return errorResponse(res, 'Invalid or expired token.', 400);
+  }
+};
+
+// Login - UPDATED to accept identifier (email or username)
+export const loginHandler = async (req, res) => {
+  try {
+    // Support both identifier (new) and email (backward compatibility)
+    const identifier = req.body.identifier || req.body.email;
+    const { password } = req.body;
+    
+    if (!identifier || !password) {
+      return errorResponse(res, 'Email/username and password are required.', 400);
     }
 
-    const result = await res.json();
-    console.log('[AUTH] Login response:', result);
+    console.log('[AUTH] Login attempt for identifier:', identifier);
 
-    const user = result?.user || result?.data?.user;
+    const { user, token } = await loginUser({ identifier, password });
 
-    if (!user || typeof user.access_level !== 'number') {
-      console.error('[AUTH] Invalid user data returned:', user);
-      return { success: false, message: 'Invalid user data returned from server.' };
+    console.log('[loginHandler] JWT token:', token);
+
+    console.log('[AUTH] Setting auth_token cookie with options:', getCookieOptions());
+    res.cookie('auth_token', token, getCookieOptions());
+
+    return successResponse(res, 'Login successful.', { user });
+
+  } catch (err) {
+    console.error('[AUTH] Login error:', err);
+    if (err.message.includes('Invalid email/username or password') || err.message.includes('Please verify your email')) {
+      return errorResponse(res, err.message, 401);
+    }
+    return errorResponse(res, err.message || 'Login failed.', 500);
+  }
+};
+
+// Validate Session - UPDATED to include username
+export const validateSessionHandler = (req, res) => {
+  try {
+    const token = req.cookies.auth_token;
+
+    if (!token) {
+      console.log('[AUTH] validateSessionHandler: No auth_token cookie');
+      return errorResponse(res, 'No valid session', 401);
     }
 
-    _auth.value = {
-      isAuthenticated: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username, // NEW: Store username
-        name: user.name,
-        access_level: user.access_level
-      },
-      accessLevel: user.access_level,
-      lastValidated: Date.now()
-    };
+    const payload = jwt.verify(token, config.jwtSecret);
 
-    console.log('[AUTH] State updated after login:', _auth.value);
-    console.log('[AUTH] Session storage snapshot:', sessionStorage.getItem('auth-session'));
+    console.log('[AUTH] validateSessionHandler: Session valid for userId:', payload.userId);
 
-    return { success: true };
-  },
+    return successResponse(res, 'Session valid', {
+      valid: true,
+      userId: payload.userId,
+      email: payload.email,
+      username: payload.username || null, // NEW: Include username
+      access_level: payload.access_level || 1
+    });
 
-  async validate() {
-    console.log('[AUTH] Validating session...');
-    try {
-      const res = await fetch(`${AppConfig.BASE_URL}/validate-session`, {
-        method: 'GET',
-        credentials: 'include'
+  } catch (err) {
+    console.error('[AUTH] validateSessionHandler error:', err.message);
+    return errorResponse(res, 'Session invalid or expired', 401);
+  }
+};
+
+// Verify Token (for UI server) - UPDATED to include username
+export const verifyTokenHandler = async (req, res) => {
+  try {
+    const token = req.cookies.auth_token;
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No authentication token provided',
+        code: 'MISSING_TOKEN'
       });
+    }
 
-      const result = res.ok ? await res.json() : { success: false };
-      const isValid = result.success === true;
+    const payload = jwt.verify(token, config.jwtSecret, {
+      issuer: 'authentique',
+      audience: 'ui-server'
+    });
 
-      if (!isValid) {
-        _auth.value = {
-          isAuthenticated: false,
-          user: null,
-          accessLevel: null,
-          lastValidated: null
-        };
-        console.log('[AUTH] Session invalid. User logged out.');
-
-        // Redirect to login page
-        window.location.href = '/auth/login';
-
-        return false;
-      } else {
-        _auth.value = {
-          // NOTE: If the server returns new user data, you should update the 'user' object here too.
-          // For now, we only update authentication status and validation time.
-          ..._auth.value, 
-          isAuthenticated: true,
-          lastValidated: Date.now()
-        };
-        console.log('[AUTH] Session valid, state updated:', _auth.value);
+    res.json({
+      success: true,
+      data: {
+        userId: payload.userId,
+        email: payload.email,
+        username: payload.username || null, // NEW: Include username
+        access_level: payload.access_level || 1, // Ensure access_level is returned
+        sessionValid: true
       }
-
-      console.log('[AUTH] Session storage snapshot after validate:', sessionStorage.getItem('auth-session'));
-      return isValid;
-
-    } catch (error) {
-      console.error('[AUTH] Session validation error:', error);
-      _auth.value = {
-        isAuthenticated: false,
-        user: null,
-        accessLevel: null,
-        lastValidated: null
-      };
-
-      // Redirect to login page on error too
-      window.location.href = '/auth/login';
-
-      return false;
-    }
-  },
-
-  async logout() {
-    console.log('[AUTH] Logging out...');
-    await fetch(`${AppConfig.BASE_URL}/logout`, {
-      method: 'POST',
-      credentials: 'include'
     });
 
-    // Reset state
-    _auth.value = {
-      isAuthenticated: false,
-      user: null,
-      accessLevel: null,
-      lastValidated: null
-    };
+  } catch (err) {
+    console.error('[AUTH] Token verification error:', err);
+    const errorType = err.name === 'TokenExpiredError' ? 'EXPIRED_TOKEN' : 'INVALID_TOKEN';
 
-    console.log('[AUTH] State reset after logout:', _auth.value);
-    console.log('[AUTH] Session storage snapshot after logout:', sessionStorage.getItem('auth-session'));
-
-    // Redirect after logout
-    window.location.href = '/auth/login';
-  },
-
-  getDashboardPath() {
-    const accessLevel = _auth.value.accessLevel;
-    // Use the new mapping object, with a fallback for unconfigured levels
-    return AppConfig.DASHBOARD_PATHS[accessLevel] || AppConfig.DASHBOARD_PATHS[1];
-  }
-};
-
-/* ==================== */
-/* USER OBJECT WITH PROPER PROPERTIES */
-/* ==================== */
-export const user = {
-  get id() {
-    // SAFEGUARDED: Reads from derived state which handles null
-    return auth.state.userId.value;
-  },
-  get name() {
-    // SAFEGUARDED: Reads from derived state which returns 'Guest' if null
-    return auth.state.userName.value;
-  },
-  get email() {
-    // SAFEGUARDED: Uses optional chaining on rawUser.value
-    return auth.state.userEmail.value;
-  },
-  get username() {
-    // NEW: Get username (could be null)
-    return auth.state.userUsername.value;
-  },
-  get accessLevel() {
-    // SAFEGUARDED: Reads from derived state, which is null if logged out
-    return auth.state.accessLevel.value;
-  },
-  // Backward compatibility - access_level property
-  get access_level() {
-    return auth.state.accessLevel.value;
-  },
-  // Get the complete raw user object
-  get raw() {
-    // SAFEGUARDED: Returns null if logged out
-    return auth.state.rawUser.value;
-  },
-  // Add a method to check if user exists
-  get exists() {
-    return !!auth.state.rawUser.value;
-  },
-  // Helper: Get display identifier (username if exists, otherwise email)
-  get displayIdentifier() {
-    return auth.state.userUsername.value || auth.state.userEmail.value;
-  }
-};
-
-console.log("User Object Properties:", {
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  username: user.username,
-  accessLevel: user.accessLevel,
-  access_level: user.access_level,
-  displayIdentifier: user.displayIdentifier
-});
-
-/* ==================== */
-/* CLEAN NAMED EXPORTS */
-/* ==================== */
-export const isAuthenticated = auth.state.isAuthenticated;
-export const accessLevel = auth.state.accessLevel;
-export const login = auth.login;
-export const getDashboardPath = auth.getDashboardPath;
-export const logout = auth.logout;
-export const validate = auth.validate;
-
-export const redirectToDashboard = () => {
-  window.location.href = auth.getDashboardPath();
-};
-
-/* ==================== */
-/* AUTO-SETUP & EFFECTS */
-/* ==================== */
-
-// NEW EFFECT: Run authorization check whenever the state changes
-$effect(() => {
-    // This effect runs on initial load and whenever 'isAuthenticated' or 'accessLevel' changes
-    console.log('[AUTH GUARD] Running authorization check due to state change.');
-    // Check if the state is fully loaded before enforcing rules, especially on initial load
-    if (_auth.value.lastValidated !== null || !auth.state.isAuthenticated.value) {
-        enforceAuthorization();
-    }
-}, [auth.state.isAuthenticated, auth.state.accessLevel]); // Depend on state changes
-
-
-// Existing effect: Session heartbeat (validate every 5 minutes)
-$effect(() => {
-  if (auth.state.isAuthenticated.value) {
-    console.log('[AUTH] Starting session heartbeat validation every 5 minutes.');
-    const interval = setInterval(auth.validate, 300000);
-    return () => {
-      console.log('[AUTH] Clearing session heartbeat interval.');
-      clearInterval(interval);
-    };
-  }
-});
-
-// Existing effect: Auto-redirect timer for session expiry (1 hour)
-$effect(() => {
-  if (auth.state.isAuthenticated.value) {
-    const expiryMs = 3600000; // 1 hour
-    const remainingMs = expiryMs - (Date.now() - (_auth.value.lastValidated || Date.now()));
-
-    console.log('[AUTH] Setting auto-redirect timer for session expiry:', remainingMs, 'ms');
-    const timer = setTimeout(() => {
-      console.log('[AUTH] Session expired - logging out and redirecting to login page.');
-      _auth.value.isAuthenticated = false;
-      window.location.href = '/auth/login';
-    }, remainingMs);
-
-    return () => {
-      console.log('[AUTH] Clearing session expiry timer.');
-      clearTimeout(timer);
-    };
-  }
-});
-
-// Initial validation on page load except on login page
-// Note: This validates, which in turn triggers the $effect for authorization.
-if (!window.location.pathname.includes('login')) {
-  console.log('[AUTH] Performing initial session validation...');
-  auth.validate();
-}
-
-// Logout button handler
-window.addEventListener('DOMContentLoaded', () => {
-  const logoutBtn = document.getElementById('logout');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      auth.logout();
+    res.status(401).json({
+      success: false,
+      message: err.message,
+      code: errorType,
+      expiredAt: err.name === 'TokenExpiredError' ? err.expiredAt : undefined
     });
   }
-});
+};
+
+// Get User Profile - UPDATED to include username
+export const getUserProfileHandler = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return errorResponse(res, 'User ID not found in request context', 400);
+    }
+
+    const user = await findUserById(userId);
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    const profile = {
+      id: user.id,
+      email: user.email,
+      username: user.username, // NEW: Include username
+      name: user.name,
+      access_level: user.access_level, // Include the access_level here
+    };
+
+    return successResponse(res, 'User profile fetched successfully.', { profile });
+
+  } catch (err) {
+    console.error('[AUTH] Error fetching user profile:', err);
+    return errorResponse(res, 'Failed to fetch user profile.', 500);
+  }
+};
+
+// Logout - UNCHANGED
+export const logoutHandler = (req, res) => {
+  try {
+    // Use the dynamic options but set maxAge to 0 to delete it
+    const options = { ...getCookieOptions(), maxAge: 0 };
+    
+    res.cookie('auth_token', '', options);
+    console.log('[AUTH] User logged out, auth_token cookie cleared.');
+    return successResponse(res, 'Logged out successfully.');
+  } catch (err) {
+    console.error('[AUTH] Logout error:', err);
+    return errorResponse(res, 'Logout failed.', 500);
+  }
+};
+
+// Handle forgot password request (send reset link) - UNCHANGED (email only)
+export const forgotPasswordHandler = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return errorResponse(res, 'Email is required.', 400);
+    }
+
+    const { name, token } = await initiatePasswordReset(email);
+
+    if (token) {
+      const emailService = await emailServicePromise;
+      await emailService.sendPasswordResetEmail({
+        to: email,
+        name,
+        token
+      });
+    }
+
+    return successResponse(res, 'If an account with that email exists, a password reset link has been sent.', null, 200);
+
+  } catch (err) {
+    console.error('[AUTH] Forgot password error:', err);
+    return errorResponse(res, err.message || 'Failed to initiate password reset.', 500);
+  }
+};
+
+// Handle actual password reset (with token) - UNCHANGED
+export const resetPasswordHandler = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return errorResponse(res, 'Token and new password are required.', 400);
+    }
+
+    await resetUserPassword(token, newPassword);
+
+    return successResponse(res, 'Password has been reset successfully.', null, 200);
+
+  } catch (err) {
+    console.error('[AUTH] Reset password error:', err);
+    return errorResponse(res, err.message || 'Failed to reset password.', 500);
+  }
+};
