@@ -1,5 +1,4 @@
 @script
-
 import { showFieldError, clearFieldErrors, showAlert } from '/public/auth/js/ui-feedback.js';
 import AppConfig from '/public/auth/js/config.js';
 
@@ -69,6 +68,23 @@ if (signupForm) {
             }
         });
 
+        // NEW: Validate optional username if provided
+        const usernameInput = form.querySelector('#signup-username');
+        if (usernameInput && usernameInput.value.trim()) {
+            const username = usernameInput.value.trim();
+            // Validate: lowercase letters and numbers only, no spaces, min 8 chars
+            if (username.length < 8) {
+                showFieldError(usernameInput, 'Username must be at least 8 characters');
+                isValid = false;
+            } else if (!/^[a-z0-9]+$/.test(username)) {
+                showFieldError(usernameInput, 'Username can only contain lowercase letters and numbers (no spaces or special characters)');
+                isValid = false;
+            } else if (!/^[a-z]/.test(username)) {
+                showFieldError(usernameInput, 'Username must start with a letter');
+                isValid = false;
+            }
+        }
+
         const passwordInput = form.querySelector('#signup-password');
         const confirmPasswordInput = form.querySelector('#signup-confirm-password');
         if (passwordInput && confirmPasswordInput && passwordInput.value !== confirmPasswordInput.value) {
@@ -105,9 +121,19 @@ if (signupForm) {
               refInput.value = cleaned; // Set cleaned value back
             }
 
+        // NEW: Clean username - convert to lowercase and trim
+        const usernameInput = signupForm.querySelector('#signup-username');
+        if (usernameInput) {
+            usernameInput.value = usernameInput.value.trim().toLowerCase();
+        }
 
         const formData = new FormData(signupForm);
         const payload = Object.fromEntries(formData.entries());
+
+        // NEW: Remove username from payload if empty (so server gets undefined)
+        if (payload.username === '') {
+            delete payload.username;
+        }
 
         if (!navigator.onLine) {
             showAlert(signupForm, 'You are offline. Please check your internet connection.', 'error', {

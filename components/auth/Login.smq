@@ -32,17 +32,19 @@ if (!form || !submitBtn) {
     setLoadingState(true);
     showStatus('Authenticating...');
 
-    const email = form.email.value.trim();
+    // Get identifier (email or username) and password
+    const identifier = form.identifier?.value.trim() || form.email?.value.trim(); // Backward compatible
     const password = form.password.value;
 
-    if (!email || !password) {
-      showStatus('Please enter both email and password.', true);
+    if (!identifier || !password) {
+      showStatus('Please enter both email/username and password.', true);
       setLoadingState(false);
       return;
     }
 
     try {
-      const { success, message } = await login(email, password);
+      // Updated login function call - passing identifier instead of email
+      const { success, message } = await login(identifier, password);
       
       if (success) {
         showStatus('Login successful! Redirecting...');
@@ -58,13 +60,11 @@ if (!form || !submitBtn) {
     }
   });
 
-  // Auto-focus email field on load
-  form.email.focus();
+  // Auto-focus identifier field on load
+  const identifierField = form.identifier || form.email;
+  if (identifierField) identifierField.focus();
 }
 
 }); 
 
 @end
-
-@html
-<span></span>

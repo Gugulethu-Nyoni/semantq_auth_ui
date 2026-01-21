@@ -6,21 +6,31 @@ import Login from '$components/auth/Login';
 
 
 @style
-
+/* Add any additional styles if needed */
+.field-hint {
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
 @end
 
 @html
 <Login />
 
- <div class="auth-container">
+<div class="auth-container">
   <div class="auth-card">
 
     <form class="auth-form" id="login-form" action="#" method="post" novalidate>
       <h2>Welcome Back</h2>
 
+      <!-- Changed from email-only to email/username -->
       <div class="form-group">
-        <label for="login-email">Email</label>
-        <input name="email" type="email" id="login-email" required />
+        <label for="login-identifier">Email or Username</label>
+        <input name="identifier" type="text" id="login-identifier" 
+               placeholder="Enter your email or username" 
+               required />
+        <div class="field-hint">Use the email or username you signed up with</div>
       </div>
 
       <div class="form-group">

@@ -118,29 +118,49 @@ const auth = {
     rawUser: $derived(() => _auth.value.user),
     accessLevel: $derived(() => _auth.value.accessLevel),
     userId: $derived(() => _auth.value.user?.id || null),
-    userName: $derived(() => _auth.value.user?.name || 'Guest')
+    userName: $derived(() => _auth.value.user?.name || 'Guest'),
+    userEmail: $derived(() => _auth.value.user?.email || ''),
+    userUsername: $derived(() => _auth.value.user?.username || null) // NEW: Username field
   },
 
-  // Methods
-  async login(email, password) {
-    console.log('[AUTH] Attempting login for:', email);
+  // Methods - UPDATED to accept identifier (email or username)
+  async login(identifier, password) {
+    console.log('[AUTH] Attempting login with identifier:', identifier);
+    
+    // Build payload - include both identifier and email for backward compatibility
+    const payload = { 
+      identifier, 
+      password,
+      // Keep email field for backward compatibility with older servers
+      email: identifier.includes('@') ? identifier : undefined 
+    };
+    
     const res = await fetch(`${AppConfig.BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
-      const message = await res.text();
+      const contentType = res.headers.get('Content-Type');
+      let message = 'Login failed';
+      
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await res.json();
+        message = errorData.message || message;
+      } else {
+        message = await res.text();
+      }
+      
       console.warn('[AUTH] Login failed:', message);
       return { success: false, message };
     }
 
     const result = await res.json();
-    console.log('[AUTH] User data from server:', result);
+    console.log('[AUTH] Login response:', result);
 
-    const user = result?.data?.user;
+    const user = result?.user || result?.data?.user;
 
     if (!user || typeof user.access_level !== 'number') {
       console.error('[AUTH] Invalid user data returned:', user);
@@ -149,7 +169,13 @@ const auth = {
 
     _auth.value = {
       isAuthenticated: true,
-      user,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username, // NEW: Store username
+        name: user.name,
+        access_level: user.access_level
+      },
       accessLevel: user.access_level,
       lastValidated: Date.now()
     };
@@ -257,7 +283,11 @@ export const user = {
   },
   get email() {
     // SAFEGUARDED: Uses optional chaining on rawUser.value
-    return auth.state.rawUser.value?.email ?? '';
+    return auth.state.userEmail.value;
+  },
+  get username() {
+    // NEW: Get username (could be null)
+    return auth.state.userUsername.value;
   },
   get accessLevel() {
     // SAFEGUARDED: Reads from derived state, which is null if logged out
@@ -275,6 +305,10 @@ export const user = {
   // Add a method to check if user exists
   get exists() {
     return !!auth.state.rawUser.value;
+  },
+  // Helper: Get display identifier (username if exists, otherwise email)
+  get displayIdentifier() {
+    return auth.state.userUsername.value || auth.state.userEmail.value;
   }
 };
 
@@ -282,8 +316,10 @@ console.log("User Object Properties:", {
   id: user.id,
   name: user.name,
   email: user.email,
+  username: user.username,
   accessLevel: user.accessLevel,
-  access_level: user.access_level
+  access_level: user.access_level,
+  displayIdentifier: user.displayIdentifier
 });
 
 /* ==================== */
