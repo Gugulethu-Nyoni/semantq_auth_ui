@@ -84,7 +84,7 @@ import SignUp from '$components/auth/SignUp';
         id="signup-username" 
         name="username" 
         placeholder="Choose a username if you prefer" 
-        pattern="^[a-z][a-z0-9]{7,}$" 
+        pattern="" 
         title="Username must be at least 8 characters, start with a letter, and contain only lowercase letters and numbers" 
        />
         <div class="field-hint">If provided, you can use this instead of email to login</div>
