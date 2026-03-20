@@ -1,6 +1,11 @@
 @script
 import 'https://cdn.jsdelivr.net/npm/chart.js'; 
 import Themejs from '$components/dashboard/Themejs';
+
+$onMount(() => {    
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+})
 @end
 
 @style
@@ -474,7 +479,7 @@ import Themejs from '$components/dashboard/Themejs';
         
         <footer class="main-footer">
             <div class="footer-content">
-                <span>© 2023 DashUI. All rights reserved.</span>
+                <span>© <span id="year"> </span> DashUI. All rights reserved.</span>
                 <div class="footer-links">
                     <a href="#">Privacy Policy</a>
                     <a href="#">Terms of Service</a>
