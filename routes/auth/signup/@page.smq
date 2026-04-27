@@ -19,7 +19,6 @@ import SignUp from '$components/auth/SignUp';
       height: 18px;
     }
 
-@style
 .password-toggle {
       right: 0.5rem;
       width: 20px;
@@ -50,7 +49,6 @@ import SignUp from '$components/auth/SignUp';
     }
 @end
 
-@end
 
 @html
 
