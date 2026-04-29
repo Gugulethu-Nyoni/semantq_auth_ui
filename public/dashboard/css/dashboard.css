@@ -93,9 +93,6 @@ body {
     transition: var(--transition);
 }
 
-
-
-
 .dashboard-container {
     display: flex;
     min-height: 100vh;
@@ -332,7 +329,6 @@ body {
     gap: 1rem;
 }
 
-
 /* Notifications dropdown */
 .notifications-wrapper {
     position: relative;
@@ -524,6 +520,7 @@ body {
     z-index: 99;
     display: none;
 }
+
 .mobile-menu-toggle {
     display: none;
     background: none;
@@ -642,6 +639,7 @@ body.light .toggle-thumb {
     flex: 1;
     padding: 1.5rem;
     overflow-y: auto;
+    padding-bottom: 4rem;
 }
 
 .page-header {
@@ -978,81 +976,9 @@ body.light .toggle-thumb {
     color: var(--text);
 }
 
-/* Light theme styles */
-body.light {
-    --bg: var(--light-bg);
-    --primary: var(--light-primary);
-    --secondary: var(--light-secondary);
-    --text: var(--light-text);
-    --text-secondary: var(--light-text-secondary);
-    --border: var(--light-border);
+.formique-spinner {
+    display: none !important;
 }
-
-/* Responsive styles */
-@media (max-width: 1024px) {
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        transform: translateX(-100%);
-        z-index: 1000;
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    .mobile-menu-toggle {
-        display: block;
-    }
-    
-    .search-bar {
-        width: 200px;
-    }
-}
-
-@media (max-width: 768px) {
-    .content-area {
-        padding: 1rem;
-    }
-    
-    .metrics-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    
-    .charts-row {
-        grid-template-columns: 1fr;
-    }
-    
-    .search-bar {
-        display: none;
-    }
-}
-
-@media (max-width: 576px) {
-    .metrics-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .table-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-    
-    .footer-content {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: flex-start;
-    }
-}
-
-.formique-spinner {display: none!important;}
-
-
-
-
 
 /* Generic Card System */
 .card {
@@ -1061,7 +987,7 @@ body.light {
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
     transition: var(--transition);
-    overflow: visible; /* Changed from hidden to fix button clipping */
+    overflow: visible;
 }
 
 .card:hover {
@@ -1075,8 +1001,8 @@ body.light {
     justify-content: space-between;
     gap: 1rem;
     border-bottom: 1px solid var(--border);
-    overflow: hidden; /* Moved overflow hidden to header */
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0; /* Ensure header corners are rounded */
+    overflow: hidden;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .card-title {
@@ -1093,7 +1019,7 @@ body.light {
 }
 
 .card-title h4 {
-    font-size: 1.125rem; /* Slightly smaller for h4 */
+    font-size: 1.125rem;
 }
 
 .card-actions {
@@ -1102,14 +1028,14 @@ body.light {
 
 .card-body {
     padding: 1.5rem;
-    overflow: visible; /* Ensure content isn't clipped */
+    overflow: visible;
 }
 
 .card-footer {
     padding: 1.5rem;
     border-top: 1px solid var(--border);
-    overflow: visible; /* Prevent button clipping */
-    border-radius: 0 0 var(--radius-xl) var(--radius-xl); /* Ensure footer corners are rounded */
+    overflow: visible;
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
 /* Text utilities */
@@ -1299,279 +1225,382 @@ body.light {
 .card-with-image .card-title h4 {
     color: white;
 }
-/* ACCORDION CSS */
-/* SMQ Accordion Base Styles */
+
+/* ==================================================== */
+/* ACCORDION - SURGICAL FIX (NO CONTENT CUTOFF)        */
+/* Preserves all functionality, fixes bottom cutoff     */
+/* ==================================================== */
+
 .smq-accordion {
-  background: var(--primary);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  margin-bottom: 1.5rem;
+    background: var(--primary);
+    border-radius: var(--radius);
+    overflow: visible;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    margin-bottom: 1.5rem;
 }
 
 .smq-accordion-item {
-  border-bottom: 1px solid var(--border);
-  transition: var(--transition);
+    border-bottom: 1px solid var(--border);
+    transition: var(--transition);
+    overflow: visible;
 }
 
 .smq-accordion-item:last-child {
-  border-bottom: none;
+    border-bottom: none;
 }
 
 .smq-accordion-item:hover {
-  background-color: var(--secondary);
+    background-color: var(--secondary);
 }
 
 /* Hide native checkbox */
 .smq-accordion-toggle {
-  position: absolute;
-  opacity: 0;
-  height: 0;
-  width: 0;
+    position: absolute;
+    opacity: 0;
+    height: 0;
+    width: 0;
 }
 
 /* Accordion Header */
 .smq-accordion-header {
-  padding: 1.25rem 1.5rem;
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-  transition: var(--transition);
-  margin: 0;
-  border: none;
-  width: 100%;
-  text-align: left;
-  font-size: 1rem;
-  color: var(--text);
-  position: relative;
+    padding: 1.25rem 1.5rem;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    transition: var(--transition);
+    margin: 0;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-size: 1rem;
+    color: var(--text);
+    position: relative;
 }
 
 .smq-accordion-header:hover {
-  background-color: var(--secondary);
-  color: var(--text);
+    background-color: var(--secondary);
+    color: var(--text);
 }
 
 /* FontAwesome chevron icon */
 .smq-accordion-header::after {
-  content: '\f078'; /* FontAwesome chevron-down */
-  font-family: 'Font Awesome 6 Free';
-  font-weight: 900;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  transition: var(--transition);
-  margin-left: 1rem;
-  flex-shrink: 0;
+    content: '\f078';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    transition: transform 0.25s ease;
+    margin-left: 1rem;
+    flex-shrink: 0;
 }
 
-/* Active state */
+/* Active state header styling */
 .smq-accordion-toggle:checked + .smq-accordion-header {
-  background-color: var(--secondary);
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
+    background-color: var(--secondary);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
 }
 
 .smq-accordion-toggle:checked + .smq-accordion-header::after {
-  transform: rotate(180deg);
-  color: var(--text);
+    transform: rotate(180deg);
+    color: var(--text);
 }
 
-/* Accordion Content */
+/* ========== THE FIX: ACCORDION CONTENT - NO CUTOFF ========== */
+/* Uses max-height approach instead of grid to prevent clipping */
 .smq-accordion-content {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: var(--primary);
-  position: relative;
+    max-height: 0;
+    overflow-y: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--primary);
+    will-change: max-height;
 }
 
+/* When expanded, use a very large max-height - content determines its own height */
 .smq-accordion-toggle:checked + .smq-accordion-header + .smq-accordion-content {
-  max-height: 6000px;
-  animation: accordionSlideDown 0.3s ease-out;
+    max-height: 5000px;  /* Large enough for hundreds of checkboxes */
+    overflow-y: auto;    /* Scroll only if content exceeds 5000px (rare) */
 }
 
-.smq-accordion-content .sqm-acc-content {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border);
-  color: var(--text);
+/* Inner content wrapper - no constraints */
+.smq-accordion-content > .sqm-acc-content {
+    padding: 1.5rem;
+    overflow: visible;
+    display: block;
+    width: 100%;
+}
+
+/* Ensure all internal elements can expand freely */
+.sqm-acc-content .formique,
+.sqm-acc-content .anygrid-container,
+.sqm-acc-content fieldset,
+.sqm-acc-content .checkbox-group,
+.sqm-acc-content .input-block,
+.sqm-acc-content div {
+    overflow: visible !important;
+    max-height: none !important;
+}
+
+/* Checkbox group specific - ensure long lists are fully visible */
+.checkbox-group {
+    display: block;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.checkbox-group div {
+    margin-bottom: 0.75rem;
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* Formique overrides to prevent internal clipping */
+.formique {
+    overflow: visible !important;
+}
+
+.formique fieldset {
+    overflow: visible !important;
+}
+
+/* Scrollbar styling for extremely long content (graceful fallback) */
+.smq-accordion-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.smq-accordion-content::-webkit-scrollbar-track {
+    background: var(--secondary);
+    border-radius: 3px;
+}
+
+.smq-accordion-content::-webkit-scrollbar-thumb {
+    background: var(--text-secondary);
+    border-radius: 3px;
 }
 
 /* Focus styles for accessibility */
 .smq-accordion-header:focus-visible {
-  outline: 2px solid var(--accent-purple);
-  outline-offset: -2px;
-  background-color: var(--secondary);
-}
-
-/* Smooth opening animation */
-@keyframes accordionSlideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    outline: 2px solid var(--accent-purple);
+    outline-offset: -2px;
+    background-color: var(--secondary);
 }
 
 /* Compact variant */
 .smq-accordion-compact .smq-accordion-header {
-  padding: 1rem 1.25rem;
-  font-size: 0.875rem;
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
 }
 
 .smq-accordion-compact .smq-accordion-content .sqm-acc-content {
-  padding: 1.25rem;
+    padding: 1.25rem;
 }
 
 /* Bordered variant */
 .smq-accordion-bordered .smq-accordion-item {
-  margin: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+    margin: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
 }
 
 .smq-accordion-bordered .smq-accordion-item:not(:last-child) {
-  margin-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 
 /* Accent color variants */
 .smq-accordion-accent .smq-accordion-toggle:checked + .smq-accordion-header {
-  background: var(--accent-gradient);
-  color: white;
-  border-left: 3px solid var(--accent-pink);
+    background: var(--accent-gradient);
+    color: white;
+    border-left: 3px solid var(--accent-pink);
 }
 
 .smq-accordion-accent .smq-accordion-toggle:checked + .smq-accordion-header::after {
-  color: white;
+    color: white;
 }
 
 .smq-accordion-accent-pink .smq-accordion-toggle:checked + .smq-accordion-header {
-  background-color: var(--accent-pink);
-  color: white;
-  border-left: 3px solid var(--accent-pink);
+    background-color: var(--accent-pink);
+    color: white;
+    border-left: 3px solid var(--accent-pink);
 }
 
 .smq-accordion-accent-purple .smq-accordion-toggle:checked + .smq-accordion-header {
-  background-color: var(--accent-purple);
-  color: white;
-  border-left: 3px solid var(--accent-purple);
+    background-color: var(--accent-purple);
+    color: white;
+    border-left: 3px solid var(--accent-purple);
 }
 
 /* Disabled state */
 .smq-accordion-item.disabled .smq-accordion-header {
-  color: var(--text-secondary);
-  cursor: not-allowed;
-  background-color: var(--secondary);
-  opacity: 0.6;
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    background-color: var(--secondary);
+    opacity: 0.6;
 }
 
 .smq-accordion-item.disabled .smq-accordion-header::after {
-  color: var(--text-secondary);
+    color: var(--text-secondary);
 }
 
 .smq-accordion-item.disabled:hover {
-  background-color: transparent;
+    background-color: transparent;
 }
 
 /* Elevated variant */
 .smq-accordion-elevated {
-  box-shadow: var(--shadow-lg);
-  border: none;
+    box-shadow: var(--shadow-lg);
+    border: none;
 }
 
 .smq-accordion-elevated .smq-accordion-item {
-  border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
 }
 
 .smq-accordion-elevated .smq-accordion-item:last-child {
-  border-bottom: none;
+    border-bottom: none;
 }
 
 /* Minimal variant */
 .smq-accordion-minimal {
-  background: transparent;
-  box-shadow: none;
-  border: none;
+    background: transparent;
+    box-shadow: none;
+    border: none;
 }
 
 .smq-accordion-minimal .smq-accordion-item {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 0.5rem;
 }
 
 .smq-accordion-minimal .smq-accordion-item:last-child {
-  border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
 }
 
 .smq-accordion-minimal .smq-accordion-header:hover {
-  background-color: var(--secondary);
+    background-color: var(--secondary);
 }
 
-/* Responsive design */
+/* Responsive accordion */
 @media (max-width: 768px) {
-  .smq-accordion-header {
-    padding: 1rem 1.25rem;
-    font-size: 0.9375rem;
-  }
-  
-  .smq-accordion-content .sqm-acc-content {
-    padding: 1.25rem;
-  }
+    .smq-accordion-header {
+        padding: 1rem 1.25rem;
+        font-size: 0.9375rem;
+    }
+    
+    .smq-accordion-content .sqm-acc-content {
+        padding: 1.25rem;
+    }
+    
+    /* Ensure mobile view never clips checkboxes */
+    .checkbox-group div {
+        margin-bottom: 1rem;
+    }
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
-  .smq-accordion {
-    border: 2px solid var(--text);
-  }
-  
-  .smq-accordion-item {
-    border-bottom: 2px solid var(--text);
-  }
-  
-  .smq-accordion-header:focus-visible {
-    outline: 3px solid var(--text);
-  }
+    .smq-accordion {
+        border: 2px solid var(--text);
+    }
+    
+    .smq-accordion-item {
+        border-bottom: 2px solid var(--text);
+    }
+    
+    .smq-accordion-header:focus-visible {
+        outline: 3px solid var(--text);
+    }
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  .smq-accordion-content {
-    transition: none;
-  }
-  
-  .smq-accordion-toggle:checked + .smq-accordion-header + .smq-accordion-content {
-    animation: none;
-  }
-  
-  .smq-accordion-header::after {
-    transition: none;
-  }
+    .smq-accordion-content {
+        transition: none;
+    }
+    
+    .smq-accordion-header::after {
+        transition: none;
+    }
 }
 
-#formiqueSpinner{display: none!important}
+#formiqueSpinner {
+    display: none !important;
+}
 
 .action-link {
-  text-decoration: none !important;
+    text-decoration: none !important;
 }
 
 .action-link:hover {
-  text-decoration: underline !important;
-  color: #4dabf7 !important; /* Light blue color */
-}
-
-#formiqueSpinner{
-    display: none!important;
+    text-decoration: underline !important;
+    color: #4dabf7 !important;
 }
 
 #formiqueSpinner > #formique-spinner {
-    display: none!important;
+    display: none !important;
 }
 
+/* Responsive styles */
+@media (max-width: 1024px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        z-index: 1000;
+    }
+    
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .mobile-menu-toggle {
+        display: block;
+    }
+    
+    .search-bar {
+        width: 200px;
+    }
+}
 
+@media (max-width: 768px) {
+    .content-area {
+        padding: 1rem;
+        padding-bottom: 3rem;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .search-bar {
+        display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .table-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+}
