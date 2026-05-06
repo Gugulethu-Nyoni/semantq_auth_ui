@@ -4,14 +4,11 @@ import { $state, $derived, $effect } from '@semantq/state';
 /* ==================== */
 /* CORE STATE           */
 /* ==================== */
-/* ==================== */
-/* CORE STATE           */
-/* ==================== */
 const _auth = $state({
     isAuthenticated: false,
     isValidating: false,   
     isInitialized: false,  
-    user: null,            // This will now contain: { id, email, username, name, access_level ... }
+    user: null,
     accessLevel: null,
     lastValidated: null
 }, {
@@ -27,7 +24,6 @@ console.log('[AUTH] Initial _auth state:', _auth.value);
 /* ==================== */
 
 function enforceAuthorization() {
-    // If we are still validating or haven't checked yet, don't enforce anything
     if (_auth.value.isValidating || !_auth.value.isInitialized) return;
 
     const isAuthenticated = _auth.value.isAuthenticated;
@@ -39,7 +35,7 @@ function enforceAuthorization() {
     const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/'];
     const isPublicRoute = PUBLIC_ROUTES.some(route => currentPath === route);
 
-    // 1. Authentication Check
+    // 1. Block unauthenticated users from protected routes
     if (!isAuthenticated) {
         if (!isPublicRoute) {
             console.warn('[AUTH GUARD] Unauthenticated access. Redirecting to login.');
@@ -48,30 +44,21 @@ function enforceAuthorization() {
         return;
     }
 
-    // 2. Redirect Authenticated Users from Public Routes
+    // 2. Redirect authenticated users away from public routes
     if (isPublicRoute) {
         console.log('[AUTH GUARD] Authenticated user on public route. Redirecting to dashboard.');
         redirectToDashboard();
         return;
     }
 
-    // 3. Authorization Check (Level Specific)
-    let isStrictMatchViolation = false;
-    let targetLevel = null;
-
-    for (const level in AppConfig.DASHBOARD_PATHS) {
-        const path = AppConfig.DASHBOARD_PATHS[level];
-        if (currentPath === path) {
-            targetLevel = parseInt(level, 10);
-            if (accessLevel !== targetLevel) {
-                isStrictMatchViolation = true;
-                break;
-            }
-        }
-    }
-
-    if (isStrictMatchViolation) {
-        console.warn(`[AUTH GUARD] Access violation. Level ${accessLevel} restricted from ${currentPath}.`);
+    // 3. UNIVERSAL: User can only access their assigned dashboard or sub-paths
+    const userDashboard = AppConfig.getDashboardPath(accessLevel);
+    
+    // Check if current path is the user's dashboard or a sub-path of it
+    const isAuthorizedPath = currentPath === userDashboard || currentPath.startsWith(userDashboard + '/');
+    
+    if (!isAuthorizedPath) {
+        console.warn(`[AUTH GUARD] Level ${accessLevel} blocked from ${currentPath}. Only ${userDashboard}/* allowed.`);
         redirectToDashboard();
         return;
     }
@@ -88,10 +75,12 @@ const auth = {
         rawUser: $derived(() => _auth.value.user),
         accessLevel: $derived(() => _auth.value.accessLevel),
         userId: $derived(() => _auth.value.user?.id || null),
-        userName: $derived(() => _auth.value.user?.name || 'Guest')
+        userName: $derived(() => _auth.value.user?.name || 'Guest'),
+        username: $derived(() => _auth.value.user?.username || null),
+        organizationId: $derived(() => _auth.value.user?.organizationId || null)
     },
 
-    async login(identifier, password) { // Changed 'email' to 'identifier'
+    async login(identifier, password) {
         console.log('[AUTH] Attempting login for:', identifier);
         _auth.value.isValidating = true;
 
@@ -100,17 +89,18 @@ const auth = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                // Using 'identifier' ensures it works with both email and username
                 body: JSON.stringify({ identifier, password }) 
             });
 
+            const data = await res.json();
+
             if (!res.ok) {
-                const message = await res.text();
-                return { success: false, message };
+                _auth.value.isValidating = false;
+                const errorMessage = data.error?.message || data.message || 'Login failed';
+                return { success: false, message: errorMessage };
             }
 
-            const result = await res.json();
-            const user = result?.data?.user;
+            const user = data?.data?.user;
 
             _auth.value = {
                 ..._auth.value,
@@ -122,10 +112,10 @@ const auth = {
                 lastValidated: Date.now()
             };
 
-            return { success: true };
+            return { success: true, message: 'Login successful' };
         } catch (err) {
             _auth.value.isValidating = false;
-            return { success: false, message: err.message };
+            return { success: false, message: err.message || 'Login failed' };
         }
     },
 
@@ -159,10 +149,11 @@ const auth = {
             user: {
                 id: result.data.userId,
                 email: result.data.email,
-                username: result.data.username, // NEW: Capture username
-                // Improved logic: Use username, then email prefix, then 'User'
-                name: result.data.username || result.data.email?.split('@')[0] || 'User',
-                access_level: result.data.access_level
+                username: result.data.username,
+                name: result.data.name || result.data.username || result.data.email?.split('@')[0] || 'User',
+                surname: result.data.surname || '',  // NEW
+                access_level: result.data.access_level,
+                organizationId: result.data.organizationId
             },
             accessLevel: result.data.access_level,
             lastValidated: Date.now()
@@ -199,36 +190,27 @@ const auth = {
 
     getDashboardPath() {
         const accessLevel = _auth.value.accessLevel;
-        return AppConfig.DASHBOARD_PATHS[accessLevel] || AppConfig.DASHBOARD_PATHS[1];
+        return AppConfig.getDashboardPath(accessLevel);
     }
 };
 
 /* ==================== */
 /* USER OBJECT          */
 /* ==================== */
-/* ==================== */
-/* USER OBJECT          */
-/* ==================== */
 export const user = {
-    // Returns the unique database ID
     get id() { return auth.state.userId.value; },
-
-    // Returns the primary display name (Prioritizes Username > Name > Email Prefix)
     get name() { return auth.state.userName.value; },
-
-    // NEW: Returns the explicit username (or null if they didn't set one)
+    get surname() { return auth.state.rawUser.value?.surname ?? '' },  // NEW
+    get fullName() {  // NEW - convenience getter
+        const name = auth.state.userName.value || '';
+        const surname = auth.state.rawUser.value?.surname || '';
+        return `${name} ${surname}`.trim();
+    },
     get username() { return auth.state.username.value; },
-
-    // Returns the user's email address
     get email() { return auth.state.rawUser.value?.email ?? ''; },
-
-    // Returns the numeric access level (1, 2, etc.)
     get accessLevel() { return auth.state.accessLevel.value; },
-
-    // Returns the full un-proxied user object from the state
+    get organizationId() { return auth.state.organizationId.value; },
     get raw() { return auth.state.rawUser.value; },
-
-    // Boolean check to see if a user session is active
     get exists() { return !!auth.state.rawUser.value; }
 };
 
@@ -242,23 +224,20 @@ export const login = auth.login;
 export const logout = auth.logout;
 export const validate = auth.validate;
 export const redirectToDashboard = () => { window.location.href = auth.getDashboardPath(); };
-
-// ADD THESE TO FIX THE BUILD ERRORS:
-export const accessLevel = auth.state.accessLevel; // Fixes "accessLevel" import errors
-export const getDashboardPath = auth.getDashboardPath; // Fixes "getDashboardPath" import errors
+export const accessLevel = auth.state.accessLevel;
+export const getDashboardPath = auth.getDashboardPath;
+export const organizationId = auth.state.organizationId;
 
 /* ==================== */
 /* AUTO-SETUP & EFFECTS */
 /* ==================== */
 
-// Only run auth checks when NOT validating and after initialization
 $effect(() => {
     if (!_auth.value.isValidating && _auth.value.isInitialized) {
         enforceAuthorization();
     }
 }, [auth.state.isAuthenticated, auth.state.isValidating, auth.state.isInitialized]);
 
-// Heartbeat
 $effect(() => {
     if (auth.state.isAuthenticated.value) {
         const interval = setInterval(auth.validate, 300000);
@@ -266,7 +245,6 @@ $effect(() => {
     }
 });
 
-// Initial validation
 if (!window.location.pathname.includes('login')) {
     auth.validate();
 }
